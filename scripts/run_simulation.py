@@ -1,7 +1,4 @@
-import json
-import sys
-import os
-
+import json, os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from engine.node import Node
@@ -9,49 +6,42 @@ from engine.simulator import NetworkSimulator
 from engine.network import Network
 from policies.base_stock import BaseStockPolicy
 from policies.ss_policy import SsPolicy
-from policies.adaptive_policy import AdaptivePolicy
 
-def load_config(path="config/sample_network.json"):
+def load_config(path="config/sample_network_123.json"):
     with open(path, "r") as f:
         return json.load(f)
 
+def make_policy(cfg):
+    if cfg["policy"] == "base_stock":
+        return BaseStockPolicy(cfg["base_stock_level"])
+    if cfg["policy"] == "ss":
+        return SsPolicy(cfg["s"], cfg["S"])
+    raise ValueError("Only 'base_stock' and 'ss' are supported.")
+
 def main():
     config = load_config()
-    T = config["time_horizon"]
-    edges = config["edges"]
-    network = Network(edges)
-
+    net = Network(config["edges"])
     nodes = {}
-    for cfg in config["nodes"]:
-        policy_type = cfg["policy"]
-        if policy_type == "base_stock":
-            policy = BaseStockPolicy(cfg["base_stock_level"])
-        elif policy_type == "ss":
-            policy = SsPolicy(cfg["s"], cfg["S"])
-        elif policy_type == "adaptive":
-            policy = AdaptivePolicy(cfg["initial_inventory"])
-        else:
-            raise ValueError(f"Unsupported policy: {policy_type}")
-
-        node = Node(
-            name=cfg["name"],
-            node_type=cfg["node_type"],
-            policy=policy,
-            initial_inventory=cfg["initial_inventory"],
-            lead_time=cfg["lead_time"],
-            holding_cost=cfg.get("holding_cost", 1.0),
-            shortage_cost=cfg.get("shortage_cost", 5.0)
+    for nc in config["nodes"]:
+        nodes[nc["name"]] = Node(
+            name=nc["name"],
+            node_type=nc["node_type"],
+            policy=make_policy(nc),
+            initial_inventory=nc["initial_inventory"],
+            lead_time=nc["lead_time"],
+            holding_cost=nc.get("holding_cost", 1.0),
+            shortage_cost=nc.get("shortage_cost", 5.0),
         )
-        nodes[cfg["name"]] = node
-
-    demand = config.get("demand", {})
-    randomness = config.get("randomness", {})
-
-    simulator = NetworkSimulator(nodes, network, demand, T, randomness)
-    simulator.simulate()
-    simulator.plot_inventory_levels()
-    simulator.print_cost_summary()
-    simulator.print_otif_summary()
+    sim = NetworkSimulator(
+        nodes, net,
+        demand_dict=config.get("demand", {}),
+        time_horizon=config["time_horizon"],
+        randomness=config.get("randomness", {})
+    )
+    sim.simulate()
+    sim.plot_inventory_levels()
+    sim.print_cost_summary()
+    sim.print_otif_summary()
 
 if __name__ == "__main__":
     main()

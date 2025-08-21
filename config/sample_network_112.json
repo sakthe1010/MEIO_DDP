@@ -1,0 +1,60 @@
+{
+  "time_horizon": 30,
+  "nodes": [
+    {
+      "name": "Supplier",
+      "node_type": "supplier",
+      "policy": "base_stock",
+      "base_stock_level": 2000,
+      "initial_inventory": 1400,
+      "lead_time": { "mean": 2, "std": 0 },
+      "holding_cost": 0.2,
+      "shortage_cost": 2.0
+    },
+    {
+      "name": "Warehouse",
+      "node_type": "warehouse",
+      "policy": "base_stock",
+      "base_stock_level": 800,
+      "initial_inventory": 500,
+      "lead_time": { "mean": 2, "std": 1 },
+      "holding_cost": 0.5,
+      "shortage_cost": 5.0
+    },
+    {
+      "name": "Retailer1",
+      "node_type": "retailer",
+      "policy": "ss",
+      "s": 50,
+      "S": 120,
+      "initial_inventory": 70,
+      "lead_time": { "mean": 1, "std": 1 },
+      "holding_cost": 1.0,
+      "shortage_cost": 10.0
+    },
+    {
+      "name": "Retailer2",
+      "node_type": "retailer",
+      "policy": "ss",
+      "s": 45,
+      "S": 110,
+      "initial_inventory": 65,
+      "lead_time": { "mean": 1, "std": 1 },
+      "holding_cost": 1.0,
+      "shortage_cost": 10.0
+    }
+  ],
+  "edges": [
+    ["Supplier", "Warehouse"],
+    ["Warehouse", "Retailer1"],
+    ["Warehouse", "Retailer2"]
+  ],
+  "demand": {
+    "Retailer1": [20,21,19,22,18,23,24,19,20,22,18,21,23,20,19,22,24,25,20,18,21,22,19,23,24,22,19,21,20,23],
+    "Retailer2": [15,16,17,14,18,17,16,15,19,18,16,15,17,19,18,16,15,14,18,19,17,16,15,17,18,19,20,18,17,16]
+  },
+  "randomness": {
+    "Retailer1": { "type": "normal", "std": 4 },
+    "Retailer2": { "type": "normal", "std": 3 }
+  }
+}
