@@ -1,140 +1,111 @@
-import numpy as np
-import os
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from collections import deque
+from dataclasses import dataclass, field
+from typing import Dict, List, Tuple
+from engine.network import Network
+from engine.node import Node
+from policies.base_stock import BasePolicy
 
-class NetworkSimulator:
-    def __init__(self, nodes, network, demand_dict, time_horizon, randomness=None):
-        self.nodes = nodes
-        self.network = network
-        self.demand_dict = demand_dict
-        self.T = time_horizon
-        self.randomness = randomness or {}
+@dataclass
+class MetricsRow:
+    t: int
+    node_id: str
+    on_hand: int
+    backlog_external: int
+    backlog_children: int
+    pipeline_in: int
+    orders_to_parent: int
+    received: int
 
-    def topological_sort(self):
-        in_degree = {n: 0 for n in self.nodes}
-        for u in self.nodes:
-            for v in self.network.get_downstream(u):
-                in_degree[v] += 1
-        q = deque([n for n, d in in_degree.items() if d == 0])
-        order = []
-        while q:
-            u = q.popleft()
-            order.append(u)
-            for v in self.network.get_downstream(u):
-                in_degree[v] -= 1
-                if in_degree[v] == 0:
-                    q.append(v)
-        return order
+@dataclass
+class Simulator:
+    network: Network
+    demand_by_node: Dict[str, callable]   # node_id -> DemandGenerator.sample
+    T: int
+    order_processing_delay: int = 1       # orders placed at t → processed at t+1
 
-    def _rand_demand(self, name, t):
-        base = self.demand_dict.get(name, [0]*self.T)[t]
-        r = self.randomness.get(name)
-        if not r:
-            return base
-        if r.get("type", "normal") == "poisson":
-            return np.random.poisson(lam=base)
-        std = r.get("std", 5)
-        return max(0, int(np.random.normal(base, std)))
+    metrics: List[MetricsRow] = field(default_factory=list)
 
-    def simulate(self):
-        order = self.topological_sort()
+    def run(self) -> List[MetricsRow]:
+        topo = self._topological_order()
+        # parent_id -> list of (process_time, child_id, qty)
+        orders_waiting: Dict[str, List[Tuple[int, str, int]]] = {}
 
         for t in range(self.T):
-            # 1) Receive all arrivals scheduled for today
-            for node in self.nodes.values():
-                node.receive_orders(t)
+            # 1) arrivals + 2) external demand
+            for nid in topo:
+                node = self.network.nodes[nid]
+                received = node.receive_shipments(t)
+                if node.node_type == 'retailer':
+                    dgen = self.demand_by_node.get(nid, None)
+                    demand = dgen(t) if dgen else 0
+                    node.process_external_demand(demand)
+                self._record(t, nid, received, orders_to_parent=0)
 
-            # 2) External demand only at leaves (retailers)
-            for name in order:
-                node = self.nodes[name]
-                children = self.network.get_downstream(name)
-                is_leaf = len(children) == 0
-                if is_leaf and node.node_type == "retailer":
-                    d = self._rand_demand(name, t)
-                    node.fulfill_external_demand(d)
-                else:
-                    node.record_no_external_demand()
+            # 3) parents process child orders due at t
+            due: Dict[str, List[Tuple[str, int]]] = {}
+            for pid, lst in list(orders_waiting.items()):
+                take = [(c, q) for (tt, c, q) in lst if tt == t]
+                if take:
+                    due[pid] = take
+                orders_waiting[pid] = [(tt, c, q) for (tt, c, q) in lst if tt != t]
+                if not orders_waiting[pid]:
+                    del orders_waiting[pid]
 
-            # 3) Each node decides how much to ORDER from its parents
-            order_requests = {name: self.nodes[name].request_order_qty(t) for name in self.nodes}
+            for parent_id, items in due.items():
+                parent = self.network.nodes[parent_id]
+                for (child, q) in items:
+                    parent.add_inbound_order(child, q)
+                child_nodes = {c: self.network.nodes[c] for c in self.network.children(parent_id)}
+                lt_map = self.network.lead_time_sampler_by_child(parent_id)
+                parent.process_child_orders(t, child_nodes, lt_map)
 
-            # 4) Parents allocate shipments to children proportional to children's requests
-            for parent_name in order:
-                parent = self.nodes[parent_name]
-                children = self.network.get_downstream(parent_name)
-                if not children:
+            # 4) place replenishment orders upstream (processed at t+1)
+            for nid in topo:
+                node = self.network.nodes[nid]
+                parent_id = self.network.parent_of(nid)
+                if parent_id is None:
                     continue
+                policy: BasePolicy = node.policy
+                q = policy.order_qty(
+                    on_hand=node.on_hand,
+                    backlog_external=node.backlog_external,
+                    backlog_children=node.total_backlog_children(),
+                    pipeline_in=node.total_pipeline_in(),
+                )
+                if q > 0:
+                    orders_waiting.setdefault(parent_id, []).append((t + self.order_processing_delay, nid, q))
+                self._record(t, nid, received=0, orders_to_parent=q)
 
-                # what each child asked for FROM THIS parent (simple split: equal share from each parent)
-                child_requests = {}
-                total_req = 0
-                for child_name in children:
-                    # If child has multiple parents, we assume it will try to split evenly
-                    parents_of_child = self.network.get_upstream(child_name)
-                    share = 1 / max(1, len(parents_of_child))
-                    req = int(share * order_requests.get(child_name, 0))
-                    child_requests[child_name] = req
-                    total_req += req
+            # invariants (catch bugs early)
+            for nid, node in self.network.nodes.items():
+                if not node.infinite_supply:
+                    assert node.on_hand >= 0, f"Negative stock at {nid} t={t}"
 
-                if total_req == 0:
-                    continue
+        return self.metrics
 
-                available = parent.inventory
-                # Allocate proportionally
-                for child_name in children:
-                    req = child_requests[child_name]
-                    if req == 0 or available <= 0:
-                        alloc = 0
-                    else:
-                        portion = req / total_req
-                        alloc = min(int(round(portion * available)), req)
-                    if alloc > 0:
-                        parent.inventory -= alloc
-                        arrival = t + parent.get_lead_time()
-                        if arrival < self.T:
-                            self.nodes[child_name].incoming_orders.append((arrival, alloc))
+    def _record(self, t: int, nid: str, received: int, orders_to_parent: int):
+        node = self.network.nodes[nid]
+        self.metrics.append(MetricsRow(
+            t=t, node_id=nid, on_hand=node.on_hand,
+            backlog_external=node.backlog_external,
+            backlog_children=node.total_backlog_children(),
+            pipeline_in=node.total_pipeline_in(),
+            orders_to_parent=orders_to_parent,
+            received=received
+        ))
 
-            # 5) Suppliers order from outside (external source)
-            for name in order:
-                node = self.nodes[name]
-                if len(self.network.get_upstream(name)) == 0:
-                    # root node(s) – buy externally
-                    ext_buy = order_requests.get(name, 0)
-                    if ext_buy > 0:
-                        arrival = t + node.get_lead_time()
-                        if arrival < self.T:
-                            node.incoming_orders.append((arrival, ext_buy))
-
-            # 6) Book costs & inventory snapshots
-            for node in self.nodes.values():
-                node.end_of_day_cost_book()
-
-    def plot_inventory_levels(self):
-        os.makedirs("visuals", exist_ok=True)
-        plt.figure(figsize=(12, 6))
-        names = list(self.nodes.keys())
-        cmap = cm.get_cmap('tab10', len(names))
-        for i, name in enumerate(names):
-            inv = self.nodes[name].history["inventory"]
-            plt.plot(inv, label=name, color=cmap(i), linewidth=1.6)
-        plt.xlabel("Day"); plt.ylabel("Inventory Level")
-        plt.title("Inventory Levels Over Time")
-        plt.legend(loc='upper right'); plt.grid(True); plt.tight_layout()
-        plt.savefig("visuals/inventory_plot.png")
-        plt.close()
-
-    def print_cost_summary(self):
-        print("\n=== Cost Summary ===")
-        for name, node in self.nodes.items():
-            print(f"{name}: Total Cost = {sum(node.history['costs']):.2f}")
-
-    def print_otif_summary(self):
-        print("\n=== OTIF Summary ===")
-        for name, node in self.nodes.items():
-            if node.node_type != "retailer":
-                continue
-            otif = node.history["otif"]
-            rate = 100 * sum(otif) / len(otif) if otif else 0.0
-            print(f"{name}: OTIF = {rate:.2f}%")
+    def _topological_order(self) -> List[str]:
+        indeg = {nid: 0 for nid in self.network.nodes}
+        for (p, c) in self.network.edges:
+            indeg[c] += 1
+        q = [nid for nid, d in indeg.items() if d == 0]
+        out = []
+        while q:
+            u = q.pop(0)
+            out.append(u)
+            for v in self.network.children(u):
+                indeg[v] -= 1
+                if indeg[v] == 0:
+                    q.append(v)
+        if len(out) != len(self.network.nodes):
+            raise ValueError("Graph not a DAG or disconnected.")
+        return out

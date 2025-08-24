@@ -1,86 +1,104 @@
-import numpy as np
+from dataclasses import dataclass, field
+from typing import Dict, List, Tuple
 
+@dataclass
+class Shipment:
+    arrival_time: int
+    qty: int
+
+@dataclass
+class IncomingOrder:
+    child_id: str
+    qty: int
+
+@dataclass
 class Node:
-    def __init__(self, name, node_type, policy, initial_inventory=0, lead_time=1,
-                 holding_cost=1.0, shortage_cost=5.0):
-        self.name = name
-        self.node_type = node_type  # "supplier" | "warehouse" | "retailer"
-        self.policy = policy
-        self.inventory = initial_inventory
-        self.backorders = 0
-        # shipments scheduled to arrive: list[(arrival_day, qty)]
-        self.incoming_orders = []
-        self.lead_time = lead_time
-        self.holding_cost = holding_cost
-        self.shortage_cost = shortage_cost
+    node_id: str
+    node_type: str  # 'supplier'|'warehouse'|'retailer'
+    policy: object  # BasePolicy-like
+    initial_inventory: int = 0
+    holding_cost: float = 0.0
+    shortage_cost: float = 0.0
+    infinite_supply: bool = False  # set True for supplier if desired
 
-        self.history = {
-            "inventory": [],
-            "orders": [],     # order requests placed to parents (or external if supplier)
-            "received": [],
-            "demand": [],
-            "shortages": [],
-            "fulfilled": [],
-            "otif": [],
-            "costs": []
-        }
+    # dynamic state
+    on_hand: int = field(init=False)
+    backlog_external: int = 0                 # retailer only
+    backlog_children: Dict[str, int] = field(default_factory=dict)  # per child
+    pipeline_in: List[Shipment] = field(default_factory=list)       # shipments en route to THIS node
+    inbound_orders_queue: List[IncomingOrder] = field(default_factory=list)  # child orders to process
 
-    def get_lead_time(self):
-        if isinstance(self.lead_time, dict):
-            mean = self.lead_time.get("mean", 1)
-            std = self.lead_time.get("std", 0)
-            return max(1, int(np.random.normal(loc=mean, scale=std)))
-        return self.lead_time
+    def __post_init__(self):
+        self.on_hand = self.initial_inventory
 
-    def on_order(self, current_day):
-        """Quantity already scheduled to arrive after current_day."""
-        return sum(q for a, q in self.incoming_orders if a > current_day)
+    def total_pipeline_in(self) -> int:
+        return sum(s.qty for s in self.pipeline_in)
 
-    def receive_orders(self, current_day):
-        received_today = 0
+    def total_backlog_children(self) -> int:
+        return sum(self.backlog_children.values()) if self.backlog_children else 0
+
+    def receive_shipments(self, t: int) -> int:
+        """Move shipments whose arrival_time == t to on_hand."""
+        arrived = 0
         keep = []
-        for arrival_day, qty in self.incoming_orders:
-            if arrival_day == current_day:
-                self.inventory += qty
-                received_today += qty
+        for s in self.pipeline_in:
+            if s.arrival_time == t:
+                arrived += s.qty
             else:
-                keep.append((arrival_day, qty))
-        self.incoming_orders = keep
-        self.history["received"].append(received_today)
+                keep.append(s)
+        self.pipeline_in = keep
+        self.on_hand += arrived
+        return arrived
 
-    def fulfill_external_demand(self, demand):
-        """For retailers only."""
-        total = demand + self.backorders
-        shipped = min(self.inventory, total)
-        self.inventory -= shipped
-        self.backorders = max(0, total - shipped)
-        self.history["demand"].append(demand)
-        self.history["fulfilled"].append(shipped)
-        self.history["shortages"].append(self.backorders)
-        self.history["otif"].append(1 if self.backorders == 0 else 0)
+    def process_external_demand(self, demand_qty: int) -> Tuple[int, int]:
+        """Retailer only: serve from on_hand; backlog remainder."""
+        fulfilled = min(self.on_hand, demand_qty)
+        self.on_hand -= fulfilled
+        unfilled = demand_qty - fulfilled
+        if unfilled > 0:
+            self.backlog_external += unfilled
+        return fulfilled, unfilled
 
-    def record_no_external_demand(self):
-        """For warehouses/suppliers."""
-        self.history["demand"].append(0)
-        self.history["fulfilled"].append(0)
-        self.history["shortages"].append(self.backorders)
-        self.history["otif"].append(1 if self.backorders == 0 else 0)
+    def add_inbound_order(self, child_id: str, qty: int):
+        self.inbound_orders_queue.append(IncomingOrder(child_id=child_id, qty=qty))
 
-    def request_order_qty(self, current_day):
+    def process_child_orders(self, t: int, child_nodes: Dict[str, "Node"],
+                             lead_time_sampler_by_child: Dict[str, callable]) -> Dict[str, int]:
         """
-        Ask the policy how much to order (request from parents).
-        Policies should be given INVENTORY POSITION (on-hand + on-order - backorders).
+        Serve children (backlog + today's new orders). Schedule shipments to child's pipeline_in.
+        Returns shipped qty per child.
         """
-        inv_pos = self.inventory + self.on_order(current_day) - self.backorders
-        # Most simple policies only need one number; pass inv_pos.
-        qty = 0
-        if hasattr(self.policy, "decide_order"):
-            qty = max(0, int(self.policy.decide_order(inv_pos)))
-        self.history["orders"].append(qty)
-        return qty
+        shipped = {}
 
-    def end_of_day_cost_book(self):
-        self.history["inventory"].append(self.inventory)
-        holding = self.inventory * self.holding_cost
-        shortage = self.backorders * self.shortage_cost
-        self.history["costs"].append(holding + shortage)
+        # merge today's incoming orders per child
+        incoming = {}
+        for o in self.inbound_orders_queue:
+            incoming[o.child_id] = incoming.get(o.child_id, 0) + o.qty
+        self.inbound_orders_queue.clear()
+
+        # union of children that might need serving
+        children = set(child_nodes.keys()) | set(self.backlog_children.keys()) | set(incoming.keys())
+
+        for child in children:
+            need = self.backlog_children.get(child, 0) + incoming.get(child, 0)
+            if need <= 0:
+                continue
+
+            if self.infinite_supply:
+                ship = need
+            else:
+                ship = min(self.on_hand, need)
+
+            if ship > 0:
+                if not self.infinite_supply:
+                    self.on_hand -= ship  # protect non-negative inventory
+                L = lead_time_sampler_by_child[child]()
+                arrival = t + L
+                assert arrival >= t, f"arrival {arrival} < t {t}"
+                child_nodes[child].pipeline_in.append(Shipment(arrival_time=arrival, qty=ship))
+
+            remaining = need - ship
+            self.backlog_children[child] = remaining if remaining > 0 else 0
+            shipped[child] = ship
+
+        return shipped
