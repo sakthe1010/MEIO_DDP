@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Callable
+from typing import Dict, List, Tuple, Callable, Optional
 from engine.node import Node
 
 @dataclass
@@ -7,6 +7,7 @@ class Edge:
     parent: str
     child: str
     lead_time_sampler: Callable[[], int]
+    share: Optional[float] = None  # for multi-parent scenarios
 
 @dataclass
 class Network:
