@@ -126,7 +126,7 @@ def build_from_config(cfg_or_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Run supply chain sim and write CSV.")
-    parser.add_argument("--config", type=str, default=os.path.join("config", "112.json"))
+    parser.add_argument("--config", type=str, default=os.path.join("config", "123.json"))
     parser.add_argument("--mode", type=str, default="both",
                         choices=["summary", "detailed", "both"],
                         help="What to emit into CSVs.")

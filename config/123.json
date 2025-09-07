@@ -9,9 +9,9 @@
     { "id": "WHB", "type": "warehouse", "initial_inventory": 70,
       "policy": { "type": "base_stock", "base_stock_level": 90 } },
 
-    { "id": "R1", "type": "retailer", "initial_inventory": 25,
-      "policy": { "type": "base_stock", "base_stock_level": 35 } },
-    { "id": "R2", "type": "retailer", "initial_inventory": 25,
+    { "id": "R1", "type": "retailer", "initial_inventory": 30,
+      "policy": { "type": "base_stock", "base_stock_level": 40 } },
+    { "id": "R2", "type": "retailer", "initial_inventory": 20,
       "policy": { "type": "base_stock", "base_stock_level": 35 } },
     { "id": "R3", "type": "retailer", "initial_inventory": 25,
       "policy": { "type": "base_stock", "base_stock_level": 35 } }
