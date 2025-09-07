@@ -2,7 +2,7 @@
   "time_horizon": 12,
   "nodes": [
     {"id":"Supplier","type":"supplier","infinite_supply":true,
-     "policy":{"type":"base_stock","base_stock_level":0}},
+     "policy":{"type":"base_stock","base_stock_level":100}},
     {"id":"Warehouse","type":"warehouse","initial_inventory":60,
      "policy":{"type":"base_stock","base_stock_level":80}},
     {"id":"Retailer","type":"retailer","initial_inventory":30,

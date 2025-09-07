@@ -1,5 +1,6 @@
 import json
 import os
+import argparse
 import pandas as pd
 
 from engine.node import Node
@@ -8,7 +9,7 @@ from engine.simulator import Simulator
 from policies.base_stock import BaseStockPolicy
 from policies.ss_policy import SsPolicy
 
-# demand/lead-time generators (inline for brevity)
+# demand/lead-time generators (inline)
 from dataclasses import dataclass
 import math, random
 
@@ -26,7 +27,6 @@ class PoissonDemand(DemandGenerator):
     lam: float
     rng: random.Random
     def sample(self, t):
-        # Knuth’s algorithm (integer-valued, uses our seeded RNG)
         L = math.exp(-self.lam)
         k = 0
         p = 1.0
@@ -50,11 +50,9 @@ class NormalIntLeadTime(LeadTimeGenerator):
     std: float
     rng: random.Random
     def sample(self):
-        # round to nearest int, lower-bounded at 0
         return max(0, int(round(self.rng.gauss(self.mean, self.std))))
 
 def build_from_config(cfg_or_path):
-    import os, json
     if isinstance(cfg_or_path, (str, os.PathLike)):
         with open(cfg_or_path, "r") as f:
             cfg = json.load(f)
@@ -63,24 +61,20 @@ def build_from_config(cfg_or_path):
     else:
         raise TypeError("build_from_config expects a path or a dict")
 
-    # Optional top-level seed for convenience; specific seeds override it
     top_seed = cfg.get("seed", None)
 
-    # nodes (same as before) ...
+    # nodes
     nodes = {}
     for nd in cfg["nodes"]:
         pol = nd.get("policy", {})
         ptype = pol.get("type", "base_stock")
         if ptype == "base_stock":
-            from policies.base_stock import BaseStockPolicy
             policy = BaseStockPolicy(base_stock_level=pol["base_stock_level"])
         elif ptype == "sS":
-            from policies.ss_policy import SsPolicy
             policy = SsPolicy(s=pol["s"], S=pol["S"])
         else:
             raise ValueError(f"Unknown policy type {ptype}")
 
-        from engine.node import Node
         nodes[nd["id"]] = Node(
             node_id=nd["id"],
             node_type=nd["type"],
@@ -92,11 +86,9 @@ def build_from_config(cfg_or_path):
         )
 
     # edges with seeded LTs
-    from engine.network import Network, Edge
     edges = {}
     for e in cfg["edges"]:
         lt = e["lead_time"]
-        # choose RNG for this edge
         lt_seed = lt.get("seed", top_seed)
         lt_rng = random.Random(lt_seed) if lt_seed is not None else random.Random()
 
@@ -109,7 +101,7 @@ def build_from_config(cfg_or_path):
 
         edges[(e["from"], e["to"])] = Edge(
             parent=e["from"], child=e["to"], lead_time_sampler=sampler,
-            share=e.get("share")  # harmless if you didn't implement multi-parent
+            share=e.get("share")
         )
 
     net = Network(nodes=nodes, edges=edges)
@@ -118,7 +110,6 @@ def build_from_config(cfg_or_path):
     demand_by_node = {}
     for d in cfg.get("demand", []):
         node = d["node"]; g = d["generator"]
-        # choose RNG for this demand stream
         d_seed = g.get("seed", top_seed)
         d_rng = random.Random(d_seed) if d_seed is not None else random.Random()
 
@@ -134,16 +125,32 @@ def build_from_config(cfg_or_path):
 
 
 def main():
-    cfg_path = os.path.join("config", "111_poisson_normal.json")
-    net, demand_by_node, T = build_from_config(cfg_path)
-    sim = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
-    metrics = sim.run()
-    df = pd.DataFrame([m.__dict__ for m in metrics])
-    os.makedirs("outputs", exist_ok=True)
-    out = os.path.join("outputs", "opt_results.csv")
-    df.to_csv(out, index=False)
-    print(f"Simulation complete. Wrote {out}")
-    print(df.head(12))
+    parser = argparse.ArgumentParser(description="Run supply chain sim and write CSV.")
+    parser.add_argument("--config", type=str, default=os.path.join("config", "112.json"))
+    parser.add_argument("--mode", type=str, default="both",
+                        choices=["summary", "detailed", "both"],
+                        help="What to emit into CSVs.")
+    parser.add_argument("--outdir", type=str, default="outputs")
+    args = parser.parse_args()
+
+    net, demand_by_node, T = build_from_config(args.config)
+    os.makedirs(args.outdir, exist_ok=True)
+
+    if args.mode in ("detailed", "both"):
+        sim = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
+        metrics = sim.run(mode="detailed")
+        df = pd.DataFrame([m.__dict__ for m in metrics])
+        out = os.path.join(args.outdir, "opt_results_detailed.csv")
+        df.to_csv(out, index=False)
+        print(f"[detailed] wrote {out}")
+
+    if args.mode in ("summary", "both"):
+        sim2 = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
+        metrics2 = sim2.run(mode="summary")
+        df2 = pd.DataFrame([m.__dict__ for m in metrics2])
+        out2 = os.path.join(args.outdir, "opt_results_summary.csv")
+        df2.to_csv(out2, index=False)
+        print(f"[summary] wrote {out2}")
 
 if __name__ == "__main__":
     main()

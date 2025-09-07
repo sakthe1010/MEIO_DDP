@@ -52,6 +52,13 @@ class Node:
 
     def process_external_demand(self, demand_qty: int) -> Tuple[int, int]:
         """Retailer only: serve from on_hand; backlog remainder."""
+        # First try to fulfill any existing backlog
+        if self.backlog_external > 0 and self.on_hand > 0:
+            backlog_fulfilled = min(self.on_hand, self.backlog_external)
+            self.on_hand -= backlog_fulfilled
+            self.backlog_external -= backlog_fulfilled
+
+        # Then handle new demand
         fulfilled = min(self.on_hand, demand_qty)
         self.on_hand -= fulfilled
         unfilled = demand_qty - fulfilled
@@ -63,7 +70,7 @@ class Node:
         self.inbound_orders_queue.append(IncomingOrder(child_id=child_id, qty=qty))
 
     def process_child_orders(self, t: int, child_nodes: Dict[str, "Node"],
-                             lead_time_sampler_by_child: Dict[str, callable]) -> Dict[str, int]:
+                           lead_time_sampler_by_child: Dict[str, callable]) -> Dict[str, int]:
         """
         Serve children (backlog + today's new orders). Schedule shipments to child's pipeline_in.
         Returns shipped qty per child.
@@ -96,9 +103,12 @@ class Node:
                 arrival = t + L
                 assert arrival >= t, f"arrival {arrival} < t {t}"
                 child_nodes[child].pipeline_in.append(Shipment(arrival_time=arrival, qty=ship))
+                shipped[child] = ship
 
             remaining = need - ship
-            self.backlog_children[child] = remaining if remaining > 0 else 0
-            shipped[child] = ship
+            if remaining > 0:
+                self.backlog_children[child] = remaining
+            elif child in self.backlog_children:
+                del self.backlog_children[child]
 
         return shipped
