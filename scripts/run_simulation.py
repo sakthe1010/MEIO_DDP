@@ -80,6 +80,12 @@ def build_from_config(cfg_or_path):
             policy = BaseStockPolicy(base_stock_level=pol["base_stock_level"])
         elif ptype == "sS":
             policy = SsPolicy(s=pol["s"], S=pol["S"])
+        elif ptype == "periodic_review":
+            from policies.periodic_review import PeriodicReviewPolicy
+            policy = PeriodicReviewPolicy(
+                review_period=pol["review_period"],
+                order_up_to=pol["order_up_to"]
+            )
         else:
             raise ValueError(f"Unknown policy type {ptype}")
 

@@ -1,0 +1,95 @@
+{
+  "time_horizon": 52,
+  "nodes": [
+    {
+      "id": "Supplier",
+      "type": "supplier",
+      "infinite_supply": true,
+      "policy": {
+        "type": "periodic_review",
+        "review_period": 4,
+        "order_up_to": 500
+      }
+    },
+    {
+      "id": "DC_Central",
+      "type": "warehouse",
+      "initial_inventory": 200,
+      "policy": {
+        "type": "periodic_review",
+        "review_period": 2,
+        "order_up_to": 300
+      }
+    },
+    {
+      "id": "Store_1",
+      "type": "retailer",
+      "initial_inventory": 50,
+      "policy": {
+        "type": "base_stock",
+        "base_stock_level": 80
+      }
+    },
+    {
+      "id": "Store_2",
+      "type": "retailer",
+      "initial_inventory": 50,
+      "policy": {
+        "type": "periodic_review",
+        "review_period": 1,
+        "order_up_to": 70
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "Supplier",
+      "to": "DC_Central",
+      "lead_time": {
+        "type": "normal_int",
+        "mean": 2,
+        "std": 0.5,
+        "seed": 1234
+      }
+    },
+    {
+      "from": "DC_Central",
+      "to": "Store_1",
+      "lead_time": {
+        "type": "deterministic",
+        "value": 1
+      }
+    },
+    {
+      "from": "DC_Central",
+      "to": "Store_2",
+      "lead_time": {
+        "type": "deterministic",
+        "value": 1
+      }
+    }
+  ],
+  "demand": [
+    {
+      "node": "Store_1",
+      "generator": {
+        "type": "seasonal",
+        "base_demand": 20,
+        "seasonal_factors": [1.0, 1.1, 1.2, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.9, 1.0, 1.1],
+        "noise_std": 2.0,
+        "seed": 5678
+      }
+    },
+    {
+      "node": "Store_2",
+      "generator": {
+        "type": "trend_seasonal",
+        "initial_demand": 15,
+        "trend_factor": 1.01,
+        "seasonal_factors": [1.0, 1.1, 1.2, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.9, 1.0, 1.1],
+        "noise_std": 1.5,
+        "seed": 9012
+      }
+    }
+  ]
+}
