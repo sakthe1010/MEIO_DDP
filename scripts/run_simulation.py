@@ -1,7 +1,15 @@
+# scripts/run_simulation.py
 import json
 import os
 import argparse
 import pandas as pd
+import sys
+from pathlib import Path
+
+# --- make project imports work even when launched via VS Code Run button ---
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from engine.node import Node
 from engine.network import Network, Edge
@@ -85,7 +93,7 @@ def build_from_config(cfg_or_path):
             infinite_supply=nd.get("infinite_supply", False),
         )
 
-    # edges with seeded LTs
+    # edges (support multiple routes with per-route shares)
     edges = {}
     for e in cfg["edges"]:
         lt = e["lead_time"]
@@ -99,9 +107,9 @@ def build_from_config(cfg_or_path):
         else:
             raise ValueError("Unknown lead time type")
 
-        edges[(e["from"], e["to"])] = Edge(
-            parent=e["from"], child=e["to"], lead_time_sampler=sampler,
-            share=e.get("share")
+        key = (e["from"], e["to"])
+        edges.setdefault(key, []).append(
+            Edge(parent=e["from"], child=e["to"], lead_time_sampler=sampler, share=e.get("share"))
         )
 
     net = Network(nodes=nodes, edges=edges)
@@ -126,31 +134,42 @@ def build_from_config(cfg_or_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Run supply chain sim and write CSV.")
-    parser.add_argument("--config", type=str, default=os.path.join("config", "123.json"))
+    parser.add_argument("--config", type=str, default=None,
+                        help="Path to config JSON. Defaults to <repo>/config/123.json")
     parser.add_argument("--mode", type=str, default="both",
                         choices=["summary", "detailed", "both"],
                         help="What to emit into CSVs.")
-    parser.add_argument("--outdir", type=str, default="outputs")
+    parser.add_argument("--outdir", type=str, default=str(ROOT / "outputs"))
     args = parser.parse_args()
 
-    net, demand_by_node, T = build_from_config(args.config)
+    cfg_path = args.config or str(ROOT / "config" / "112_multiroute_simple.json")
+    net, demand_by_node, T = build_from_config(cfg_path)
     os.makedirs(args.outdir, exist_ok=True)
 
-    if args.mode in ("detailed", "both"):
-        sim = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
-        metrics = sim.run(mode="detailed")
-        df = pd.DataFrame([m.__dict__ for m in metrics])
-        out = os.path.join(args.outdir, "opt_results_detailed.csv")
-        df.to_csv(out, index=False)
-        print(f"[detailed] wrote {out}")
+    # Run the summary model first (we’ll also use it to dump the shipments log)
+    sim_sum = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
+    metrics_sum = sim_sum.run(mode="summary")
+    df_sum = pd.DataFrame([m.__dict__ for m in metrics_sum])
+    out_sum = os.path.join(args.outdir, "opt_results_summary.csv")
+    df_sum.to_csv(out_sum, index=False)
+    print(f"[summary] wrote {out_sum}")
 
-    if args.mode in ("summary", "both"):
-        sim2 = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
-        metrics2 = sim2.run(mode="summary")
-        df2 = pd.DataFrame([m.__dict__ for m in metrics2])
-        out2 = os.path.join(args.outdir, "opt_results_summary.csv")
-        df2.to_csv(out2, index=False)
-        print(f"[summary] wrote {out2}")
+    # Dump shipments log for route verification
+    if sim_sum.shipments_log:
+        df_ship = pd.DataFrame(sim_sum.shipments_log)
+        out_ship = os.path.join(args.outdir, "shipments_log.csv")
+        df_ship.to_csv(out_ship, index=False)
+        print(f"[debug] wrote {out_ship}")
+
+    if args.mode in ("detailed", "both"):
+        # Rebuild to keep runs independent
+        net, demand_by_node, T = build_from_config(cfg_path)
+        sim_det = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
+        metrics_det = sim_det.run(mode="detailed")
+        df_det = pd.DataFrame([m.__dict__ for m in metrics_det])
+        out_det = os.path.join(args.outdir, "opt_results_detailed.csv")
+        df_det.to_csv(out_det, index=False)
+        print(f"[detailed] wrote {out_det}")
 
 if __name__ == "__main__":
     main()

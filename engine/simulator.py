@@ -15,34 +15,28 @@ class MetricsRow:
     pipeline_in: int
     orders_to_parent: int
     received: int
-    phase: str = "EOD"   # keeps optional detailed views possible
+    phase: str = "EOD"
 
 @dataclass
 class Simulator:
     network: Network
     demand_by_node: Dict[str, callable]   # node_id -> DemandGenerator.sample
     T: int
-    order_processing_delay: int = 1       # orders placed at t → processed at t+1
+    order_processing_delay: int = 1
 
     metrics: List[MetricsRow] = field(default_factory=list)
+    shipments_log: List[Dict] = field(default_factory=list)   # NEW: route verification
 
     def run(self, mode: str = "summary") -> List[MetricsRow]:
-        """
-        Periodic-review loop.
-
-        mode = "summary"  -> one EOD snapshot per node per t, with same-day flows recorded
-        mode = "detailed" -> optional per-phase snapshots + EOD (useful for debugging)
-        """
         topo = self._topological_order()
         # parent_id -> list of (process_time, child_id, qty)
         orders_waiting: Dict[str, List[Tuple[int, str, int]]] = {}
 
         for t in range(self.T):
-            # Track today's flows to include in the *EOD* record
             received_today: Dict[str, int] = {nid: 0 for nid in self.network.nodes}
             orders_today: Dict[str, int]   = {nid: 0 for nid in self.network.nodes}
 
-            # 1) Arrivals: move shipments arriving at t into on_hand
+            # 1) Arrivals
             for nid in topo:
                 node = self.network.nodes[nid]
                 rec = node.receive_shipments(t)
@@ -50,8 +44,7 @@ class Simulator:
                 if mode == "detailed":
                     self._record(t, nid, received=rec, orders_to_parent=0, phase="after_arrivals")
 
-            # 1a) (NEW) Serve *external* backlog immediately after arrivals, before new demand
-            #      This models backorders: when stock shows up, you first clear owed customer orders.
+            # 1a) Clear external backlog immediately after arrivals
             for nid in topo:
                 node = self.network.nodes[nid]
                 if node.node_type == 'retailer' and node.backlog_external > 0 and node.on_hand > 0:
@@ -61,7 +54,7 @@ class Simulator:
                     if mode == "detailed" and served_backlog > 0:
                         self._record(t, nid, received=0, orders_to_parent=0, phase="after_backlog_clear")
 
-            # 2) External demand (retailers only) for period t
+            # 2) External demand
             for nid in topo:
                 node = self.network.nodes[nid]
                 if node.node_type == 'retailer':
@@ -71,32 +64,33 @@ class Simulator:
                     if mode == "detailed":
                         self._record(t, nid, received=0, orders_to_parent=0, phase="after_demand")
 
-            # 3) Parents process child orders that are due to be processed at t
+            # 3) Parents process child orders due at t
             due: Dict[str, List[Tuple[str, int]]] = {}
             for pid, lst in list(orders_waiting.items()):
                 take = [(c, q) for (tt, c, q) in lst if tt == t]
                 if take:
                     due[pid] = take
-                # keep the rest
                 orders_waiting[pid] = [(tt, c, q) for (tt, c, q) in lst if tt != t]
                 if not orders_waiting[pid]:
                     del orders_waiting[pid]
 
             for parent_id, items in due.items():
                 parent = self.network.nodes[parent_id]
-                # enqueue today's incoming child orders at parent
                 for (child, q) in items:
                     parent.add_inbound_order(child, q)
-                # parent serves children (backlog + today's)
                 child_nodes = {c: self.network.nodes[c] for c in self.network.children(parent_id)}
                 lt_map = self.network.lead_time_sampler_by_child(parent_id)
-                parent.process_child_orders(t, child_nodes, lt_map)
+
+                def _on_ship(p, c, tt, L, qty):
+                    self.shipments_log.append({"t_ship": tt, "parent": p, "child": c, "lead_time": L, "qty": qty})
+
+                parent.process_child_orders(t, child_nodes, lt_map, on_ship=_on_ship)
 
             if mode == "detailed":
                 for nid in topo:
                     self._record(t, nid, received=0, orders_to_parent=0, phase="after_shipments")
 
-            # 4) Place replenishment orders upstream (these will be processed at t+order_processing_delay)
+            # 4) Place upstream orders
             for nid in topo:
                 node = self.network.nodes[nid]
                 parent_id = self.network.parent_of(nid)
@@ -111,13 +105,12 @@ class Simulator:
                 )
                 if q > 0:
                     orders_waiting.setdefault(parent_id, []).append((t + self.order_processing_delay, nid, q))
-                # record today's order placed upstream (even if 0, it’s informative for tests & plots)
                 orders_today[nid] = q
 
                 if mode == "detailed":
                     self._record(t, nid, received=0, orders_to_parent=q, phase="after_ordering")
 
-            # 5) Record the single End-of-Day snapshot (always)
+            # 5) EOD snapshot
             for nid in topo:
                 self._record(
                     t, nid,
@@ -126,7 +119,7 @@ class Simulator:
                     phase="EOD"
                 )
 
-            # Safety invariants
+            # Safety
             for nid, node in self.network.nodes.items():
                 if not node.infinite_supply:
                     assert node.on_hand >= 0, f"Negative stock at {nid} t={t}"
