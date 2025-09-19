@@ -1,0 +1,20 @@
+{
+  "item_id": "1b240e56c0ea",
+  "stores": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "window": {
+    "start": "2024-04-12",
+    "end": "2024-09-26"
+  },
+  "files": {
+    "1": "dataset/demand/demand_store_1.csv",
+    "2": "dataset/demand/demand_store_2.csv",
+    "3": "dataset/demand/demand_store_3.csv",
+    "4": "dataset/demand/demand_store_4.csv",
+    "wide": "dataset/demand/demand_all_stores_wide.csv"
+  }
+}
