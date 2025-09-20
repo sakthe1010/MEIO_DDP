@@ -20,6 +20,7 @@ from policies.ss_policy import SsPolicy
 # demand/lead-time generators (inline)
 from dataclasses import dataclass
 import math, random
+from typing import List
 
 # ---------- Demand ----------
 class DemandGenerator:
@@ -43,6 +44,22 @@ class PoissonDemand(DemandGenerator):
             p *= self.rng.random()
         return k - 1
 
+# NEW: CSV-driven demand (wrap/clip strategies)
+@dataclass
+class CSVDrivenDemand(DemandGenerator):
+    series: List[int]
+    strategy: str = "wrap"  # "wrap" or "clip"
+    def sample(self, t: int) -> int:
+        if not self.series:
+            return 0
+        n = len(self.series)
+        if t < n:
+            return int(self.series[t])
+        if self.strategy == "wrap":
+            return int(self.series[t % n])
+        # "clip": return 0 after series ends
+        return 0
+
 # ---------- Lead time ----------
 class LeadTimeGenerator:
     def sample(self) -> int: raise NotImplementedError
@@ -59,6 +76,15 @@ class NormalIntLeadTime(LeadTimeGenerator):
     rng: random.Random
     def sample(self):
         return max(0, int(round(self.rng.gauss(self.mean, self.std))))
+
+def _read_csv_series(path: Path, date_col: str, qty_col: str) -> List[int]:
+    df = pd.read_csv(path)
+    if date_col in df.columns:
+        df[date_col] = pd.to_datetime(df[date_col])
+        df = df.sort_values(date_col)
+    # tolerate extra cols; just take qty
+    s = df[qty_col].fillna(0).astype(int).tolist()
+    return s
 
 def build_from_config(cfg_or_path):
     if isinstance(cfg_or_path, (str, os.PathLike)):
@@ -120,19 +146,52 @@ def build_from_config(cfg_or_path):
 
     net = Network(nodes=nodes, edges=edges)
 
-    # demand with seeded RNGs
+    # demand (now supports csv/manifest in addition to deterministic/poisson)
     demand_by_node = {}
     for d in cfg.get("demand", []):
         node = d["node"]; g = d["generator"]
         d_seed = g.get("seed", top_seed)
         d_rng = random.Random(d_seed) if d_seed is not None else random.Random()
 
-        if g["type"] == "deterministic":
+        gtype = g["type"]
+        if gtype == "deterministic":
             demand_by_node[node] = DeterministicDemand(g["value"]).sample
-        elif g["type"] == "poisson":
+        elif gtype == "poisson":
             demand_by_node[node] = PoissonDemand(g["lam"], d_rng).sample
+        elif gtype == "csv":
+            strategy = g.get("strategy", "wrap")
+            date_col = g.get("date_col", "date")
+            qty_col = g.get("qty_col", "quantity")
+
+            if "path" in g:
+                # direct file
+                path = (ROOT / g["path"]).resolve() if not os.path.isabs(g["path"]) else Path(g["path"])
+                series = _read_csv_series(path, date_col, qty_col)
+            elif "manifest" in g and "store_id" in g:
+                # via manifest
+                man_path = (ROOT / g["manifest"]).resolve() if not os.path.isabs(g["manifest"]) else Path(g["manifest"])
+                with open(man_path, "r") as mf:
+                    manifest = json.load(mf)
+                sid = str(g["store_id"])
+                csv_rel = manifest["files"][sid]
+                csv_path = Path(csv_rel)
+
+                # If the manifest stores a relative path (like "demand_store_1.csv"),
+                # join with manifest parent. If it’s already absolute or starts with "dataset/",
+                # trust it directly.
+                if not csv_path.is_absolute() and not str(csv_path).startswith("dataset/"):
+                    path = (man_path.parent / csv_rel).resolve()
+                else:
+                    path = (ROOT / csv_rel).resolve() if not csv_path.is_absolute() else csv_path
+
+                series = _read_csv_series(path, date_col, qty_col)
+
+            else:
+                raise ValueError("csv generator requires either 'path' or ('manifest' + 'store_id').")
+
+            demand_by_node[node] = CSVDrivenDemand(series=series, strategy=strategy).sample
         else:
-            raise ValueError("Unknown demand generator type")
+            raise ValueError(f"Unknown demand generator type {gtype}")
 
     T = int(cfg["time_horizon"])
     return net, demand_by_node, T
@@ -155,14 +214,15 @@ def main():
     # Run the summary model first (we’ll also use it to dump the shipments log)
     sim_sum = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
     metrics_sum = sim_sum.run(mode="summary")
-    df_sum = pd.DataFrame([m.__dict__ for m in metrics_sum])
+    import pandas as _pd
+    df_sum = _pd.DataFrame([m.__dict__ for m in metrics_sum])
     out_sum = os.path.join(args.outdir, "opt_results_summary.csv")
     df_sum.to_csv(out_sum, index=False)
     print(f"[summary] wrote {out_sum}")
 
     # Dump shipments log for route verification
     if sim_sum.shipments_log:
-        df_ship = pd.DataFrame(sim_sum.shipments_log)
+        df_ship = _pd.DataFrame(sim_sum.shipments_log)
         out_ship = os.path.join(args.outdir, "shipments_log.csv")
         df_ship.to_csv(out_ship, index=False)
         print(f"[debug] wrote {out_ship}")
@@ -172,7 +232,7 @@ def main():
         net, demand_by_node, T = build_from_config(cfg_path)
         sim_det = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
         metrics_det = sim_det.run(mode="detailed")
-        df_det = pd.DataFrame([m.__dict__ for m in metrics_det])
+        df_det = _pd.DataFrame([m.__dict__ for m in metrics_det])
         out_det = os.path.join(args.outdir, "opt_results_detailed.csv")
         df_det.to_csv(out_det, index=False)
         print(f"[detailed] wrote {out_det}")

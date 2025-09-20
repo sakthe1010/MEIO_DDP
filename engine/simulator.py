@@ -97,12 +97,23 @@ class Simulator:
                 if parent_id is None:
                     continue
                 policy: BasePolicy = node.policy
-                q = policy.order_qty(
-                    on_hand=node.on_hand,
-                    backlog_external=node.backlog_external,
-                    backlog_children=node.total_backlog_children(),
-                    pipeline_in=node.total_pipeline_in(),
-                )
+                try:
+                    # New: try time-aware call
+                    q = policy.order_qty(
+                        on_hand=node.on_hand,
+                        backlog_external=node.backlog_external,
+                        backlog_children=node.total_backlog_children(),
+                        pipeline_in=node.total_pipeline_in(),
+                        t=t,                      # <— NEW
+                    )
+                except TypeError:
+                    # Backward-compatible fallback
+                    q = policy.order_qty(
+                        on_hand=node.on_hand,
+                        backlog_external=node.backlog_external,
+                        backlog_children=node.total_backlog_children(),
+                        pipeline_in=node.total_pipeline_in(),
+                    )
                 if q > 0:
                     orders_waiting.setdefault(parent_id, []).append((t + self.order_processing_delay, nid, q))
                 orders_today[nid] = q
