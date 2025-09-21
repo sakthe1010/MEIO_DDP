@@ -106,11 +106,14 @@ def build_from_config(cfg_or_path):
             policy = BaseStockPolicy(base_stock_level=pol["base_stock_level"])
         elif ptype == "sS":
             policy = SsPolicy(s=pol["s"], S=pol["S"])
-        elif ptype == "periodic_review":
-            from policies.periodic_review import PeriodicReviewPolicy
-            policy = PeriodicReviewPolicy(
-                review_period=pol["review_period"],
-                order_up_to=pol["order_up_to"]
+        elif ptype == "order_up_to":
+            from policies.order_up_to import OrderUpToPolicy
+            policy = OrderUpToPolicy(R=pol["R"], S=pol["S"], phase_offset=pol.get("phase_offset", 0))
+        elif ptype == "km_cycle":
+            from policies.km_cycle import KmCyclePolicy
+            policy = KmCyclePolicy(
+                k=pol["k"], m=pol["m"], S=pol["S"],
+                review_offsets=tuple(pol.get("review_offsets", (0,)))
             )
         else:
             raise ValueError(f"Unknown policy type {ptype}")
