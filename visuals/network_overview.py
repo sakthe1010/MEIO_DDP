@@ -10,6 +10,7 @@ def _ensure_dir(path):
 def _derive_cols(df):
     df["backlog_total"] = df["backlog_external"].fillna(0) + df["backlog_children"].fillna(0)
     df["ip"] = df["on_hand"] - df["backlog_total"] + df["pipeline_in"]
+    df["ip_effective"] = df["ip"] + df["orders_to_parent"]
     return df
 
 def plot_single(csv_path, out_path, metric="ip", phase=None, title_note=""):
@@ -23,6 +24,8 @@ def plot_single(csv_path, out_path, metric="ip", phase=None, title_note=""):
         "ip": "Inventory Position (IP)",
         "on_hand": "On-hand",
         "received": "Received today",
+        "ip_effective": "Effective IP (incl. today’s order)",
+        "pipeline_in": "Pipeline (in-transit)",
         "orders_to_parent": "Orders placed today"
     }
 
@@ -49,7 +52,7 @@ def main():
     parser.add_argument("--config", type=str, default="112_multiroute_simple.json")
     parser.add_argument("--out_dir", type=str, default="visuals")
     parser.add_argument("--metric", type=str, default="ip",
-                        choices=["ip", "on_hand", "received", "orders_to_parent"])
+                        choices=["ip", "ip_effective", "on_hand", "received", "orders_to_parent", "pipeline_in"])
     parser.add_argument("--phase", type=str, default=None)
     args = parser.parse_args()
 
