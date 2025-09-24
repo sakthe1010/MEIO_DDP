@@ -12,19 +12,19 @@
       "id": "WH",
       "type": "warehouse",
       "initial_inventory": 60,
-      "policy": { "type": "order_up_to", "R": 1, "S": 70, "k": 1, "m": 4 }
+      "policy": { "type": "km_cycle", "k": 1, "m": 4, "S": 70, "review_offsets": [2] }
     },
     {
       "id": "R1",
       "type": "retailer",
       "initial_inventory": 30,
-      "policy": { "type": "order_up_to", "R": 1, "S": 32, "k": 2, "m": 5 }
+      "policy": { "type": "km_cycle", "k": 2, "m": 5, "S": 32, "review_offsets": [0, 3] }
     },
     {
       "id": "R2",
       "type": "retailer",
       "initial_inventory": 20,
-      "policy": { "type": "order_up_to", "R": 1, "S": 30, "k": 1, "m": 5 }
+      "policy": { "type": "km_cycle", "k": 1, "m": 5, "S": 30, "review_offsets": [1] }
     }
   ],
 
