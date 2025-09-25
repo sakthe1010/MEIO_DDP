@@ -1,7 +1,7 @@
 dataset/sales.csv filter=lfs diff=lfs merge=lfs -text
 dataset/online.csv filter=lfs diff=lfs merge=lfs -text
-dataset/m 5 dataset/calendar.csv filter=lfs diff=lfs merge=lfs -text
-dataset/m 5 dataset/sales_train_validation.csv filter=lfs diff=lfs merge=lfs -text
-dataset/m 5 dataset/sample_submission.csv filter=lfs diff=lfs merge=lfs -text
-dataset/m 5 dataset/sell_prices.csv filter=lfs diff=lfs merge=lfs -text
+dataset/m5_dataset/calendar.csv filter=lfs diff=lfs merge=lfs -text
+dataset/m5_dataset/sales_train_validation.csv filter=lfs diff=lfs merge=lfs -text
+dataset/m5_dataset/sample_submission.csv filter=lfs diff=lfs merge=lfs -text
+dataset/m5_dataset/sell_prices.csv filter=lfs diff=lfs merge=lfs -text
 dataset/m5_dataset/*.csv filter=lfs diff=lfs merge=lfs -text
