@@ -54,6 +54,8 @@ class Node:
     def process_external_demand(self, demand_qty: int) -> Tuple[int, int]:
         """Retailer only: serve current period's demand; backlog remainder.
         NOTE: backlog from prior periods should be cleared *before* calling this (simulator does it)."""
+        # ✅ BUGFIX #1: clip weird/negative inputs so they can't inflate on_hand
+        demand_qty = max(0, int(demand_qty))
         fulfilled = min(self.on_hand, demand_qty)
         self.on_hand -= fulfilled
         unfilled = demand_qty - fulfilled
@@ -98,9 +100,9 @@ class Node:
             if ship > 0:
                 if not self.infinite_supply:
                     self.on_hand -= ship
-                L = lead_time_sampler_by_child[child]()
-                arrival = t + L
-                assert arrival >= t, f"arrival {arrival} < t {t}"
+                L = int(lead_time_sampler_by_child[child]())
+                # ✅ BUGFIX #2: avoid same-day arrivals getting “lost”; earliest arrival is next day
+                arrival = t + max(1, L)
                 child_nodes[child].pipeline_in.append(Shipment(arrival_time=arrival, qty=ship))
                 shipped[child] = ship
                 if on_ship:
