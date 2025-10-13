@@ -48,16 +48,17 @@ class PoissonDemand(DemandGenerator):
 @dataclass
 class CSVDrivenDemand(DemandGenerator):
     series: List[int]
-    strategy: str = "wrap"  # "wrap" or "clip"
+    strategy: str = "wrap"      # "wrap" or "clip"
+    start_index: int = 0        # allows starting near the end
     def sample(self, t: int) -> int:
         if not self.series:
             return 0
-        n = len(self.series)
-        if t < n:
-            return int(self.series[t])
+        i = self.start_index + t
+        if i < len(self.series):
+            return int(self.series[i])
+        # after we exhaust the tail segment, apply strategy
         if self.strategy == "wrap":
-            return int(self.series[t % n])
-        # "clip": return 0 after series ends
+            return int(self.series[(i) % len(self.series)])
         return 0
 
 # ---------- Lead time ----------
@@ -192,7 +193,15 @@ def build_from_config(cfg_or_path):
             else:
                 raise ValueError("csv generator requires either 'path' or ('manifest' + 'store_id').")
 
-            demand_by_node[node] = CSVDrivenDemand(series=series, strategy=strategy).sample
+            # ... after you have built `series` ...
+            tail_days = int(g.get("tail_days", 0))
+            if tail_days > 0:
+                start_index = max(0, len(series) - tail_days)
+            else:
+                start_index = int(g.get("start_index", 0))
+
+            demand_by_node[node] = CSVDrivenDemand(series=series, strategy=g.get("strategy", "wrap"), start_index=start_index).sample
+
         else:
             raise ValueError(f"Unknown demand generator type {gtype}")
 
