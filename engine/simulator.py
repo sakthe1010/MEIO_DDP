@@ -16,6 +16,8 @@ class MetricsRow:
     orders_to_parent: int
     received: int
     phase: str = "EOD"
+    demand: int = 0             
+    fulfilled_external: int = 0  
 
 @dataclass
 class Simulator:
@@ -31,10 +33,14 @@ class Simulator:
         topo = self._topological_order()
         # parent_id -> list of (process_time, child_id, qty)
         orders_waiting: Dict[str, List[Tuple[int, str, int]]] = {}
+        demand_today: Dict[str, int] = {}
+        fulfilled_today: Dict[str, int] = {}
 
         for t in range(self.T):
             received_today: Dict[str, int] = {nid: 0 for nid in self.network.nodes}
             orders_today: Dict[str, int]   = {nid: 0 for nid in self.network.nodes}
+            demand_today = {nid: 0 for nid in self.network.nodes}
+            fulfilled_today = {nid: 0 for nid in self.network.nodes}
 
             # 1) Arrivals
             for nid in topo:
@@ -59,8 +65,10 @@ class Simulator:
                 node = self.network.nodes[nid]
                 if node.node_type == 'retailer':
                     dgen = self.demand_by_node.get(nid, None)
-                    demand = dgen(t) if dgen else 0
-                    node.process_external_demand(demand)
+                    demand = int(dgen(t)) if dgen else 0
+                    fulfilled, unfilled = node.process_external_demand(demand)
+                    demand_today[nid] = demand
+                    fulfilled_today[nid] = fulfilled
                     if mode == "detailed":
                         self._record(t, nid, received=0, orders_to_parent=0, phase="after_demand")
 
@@ -127,7 +135,9 @@ class Simulator:
                     t, nid,
                     received=received_today[nid],
                     orders_to_parent=orders_today[nid],
-                    phase="EOD"
+                    phase="EOD",
+                    demand=demand_today[nid],
+                    fulfilled_external=fulfilled_today[nid]
                 )
 
             # Safety
@@ -137,7 +147,8 @@ class Simulator:
 
         return self.metrics
 
-    def _record(self, t: int, nid: str, received: int, orders_to_parent: int, phase: str = "EOD"):
+    def _record(self, t: int, nid: str, received: int, orders_to_parent: int,
+                phase: str = "EOD", demand: int = 0, fulfilled_external: int = 0):
         node = self.network.nodes[nid]
         self.metrics.append(MetricsRow(
             t=t, node_id=nid, on_hand=node.on_hand,
@@ -145,8 +156,8 @@ class Simulator:
             backlog_children=node.total_backlog_children(),
             pipeline_in=node.total_pipeline_in(),
             orders_to_parent=orders_to_parent,
-            received=received,
-            phase=phase
+            received=received, phase=phase,
+            demand=demand, fulfilled_external=fulfilled_external
         ))
 
     def _topological_order(self) -> List[str]:
