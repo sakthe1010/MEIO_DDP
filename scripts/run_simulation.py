@@ -128,6 +128,8 @@ def build_from_config(cfg_or_path):
             holding_cost=nd.get("holding_cost", 0.0),
             shortage_cost=nd.get("shortage_cost", 0.0),
             infinite_supply=nd.get("infinite_supply", False),
+            order_cost_fixed=nd.get("order_cost_fixed", 0.0),
+            order_cost_per_unit=nd.get("order_cost_per_unit", 0.0),
         )
 
     # edges (support multiple routes with per-route shares)
@@ -146,7 +148,7 @@ def build_from_config(cfg_or_path):
 
         key = (e["from"], e["to"])
         edges.setdefault(key, []).append(
-            Edge(parent=e["from"], child=e["to"], lead_time_sampler=sampler, share=e.get("share"))
+            Edge(parent=e["from"], child=e["to"], lead_time_sampler=sampler, share=e.get("share"), transport_cost_per_unit=e.get("transport_cost_per_unit", 0.0))
         )
 
     net = Network(nodes=nodes, edges=edges)
@@ -232,6 +234,32 @@ def main():
     out_sum = os.path.join(args.outdir, "opt_results_summary.csv")
     df_sum.to_csv(out_sum, index=False)
     print(f"[summary] wrote {out_sum}")
+
+        # -------- Costs summary (EOD rows only) --------
+    is_eod = df_sum["phase"] == "EOD"
+    c = df_sum[is_eod].copy()
+    grp = c.groupby("node_id").agg(
+        holding_cost=("holding_cost", "sum"),
+        backlog_cost=("backlog_cost", "sum"),
+        ordering_cost=("ordering_cost", "sum"),
+        transport_cost=("transport_cost", "sum"),
+        total_cost=("total_cost", "sum"),
+    ).reset_index()
+
+    overall = pd.DataFrame([{
+        "node_id": "_OVERALL_",
+        "holding_cost": grp["holding_cost"].sum(),
+        "backlog_cost": grp["backlog_cost"].sum(),
+        "ordering_cost": grp["ordering_cost"].sum(),
+        "transport_cost": grp["transport_cost"].sum(),
+        "total_cost": grp["total_cost"].sum(),
+    }])
+
+    costs_df = pd.concat([grp, overall], ignore_index=True)
+    out_costs = os.path.join(args.outdir, "costs_summary.csv")
+    costs_df.to_csv(out_costs, index=False)
+    print(f"[costs] wrote {out_costs}")
+
 
     # Dump shipments log for route verification
     if sim_sum.shipments_log:

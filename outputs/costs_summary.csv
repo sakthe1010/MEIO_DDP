@@ -1,0 +1,8 @@
+node_id,holding_cost,backlog_cost,ordering_cost,transport_cost,total_cost
+R1,0.0,0.0,0.0,0.0,0.0
+R2,0.0,0.0,0.0,0.0,0.0
+R3,0.0,0.0,0.0,0.0,0.0
+Supplier,0.0,0.0,0.0,0.0,0.0
+W1,0.0,0.0,0.0,0.0,0.0
+W2,0.0,0.0,0.0,0.0,0.0
+_OVERALL_,0.0,0.0,0.0,0.0,0.0

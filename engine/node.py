@@ -21,6 +21,8 @@ class Node:
     holding_cost: float = 0.0
     shortage_cost: float = 0.0
     infinite_supply: bool = False  # set True for supplier if desired
+    order_cost_fixed: float = 0.0
+    order_cost_per_unit: float = 0.0
 
     # dynamic state
     on_hand: int = field(init=False)

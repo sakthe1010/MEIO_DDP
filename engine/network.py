@@ -10,7 +10,7 @@ class Edge:
     child: str
     lead_time_sampler: Callable[[], int]
     share: Optional[float] = None  # optional weight for route selection
-
+    transport_cost_per_unit: Optional[float] = None  # optional cost per unit transported
 def _det_lt_one():
     return 1
 
@@ -90,3 +90,23 @@ class Network:
             e_list = self.edges[(parent_id, c)]
             out[c] = e_list[0].lead_time_sampler if len(e_list) == 1 else self._mixed_sampler(e_list)
         return out
+    
+    def _avg_costs_by_child(self, parent_id: str) -> Dict[str, float]:
+        """Share-weighted average transport cost per child for a given parent."""
+        out: Dict[str, float] = {}
+        for c in self.children(parent_id):
+            e_list = self.edges[(parent_id, c)]
+            weights = [e.share if (e.share is not None and e.share > 0) else 1.0 for e in e_list]
+            total_w = sum(weights)
+            if total_w <= 0:
+                out[c] = 0.0
+                continue
+            # weighted average of per-unit transport costs
+            cost = sum(w * e.transport_cost_per_unit for w, e in zip(weights, e_list)) / total_w
+            out[c] = float(cost)
+        return out
+
+    def transport_cost_average_by_child(self, parent_id: str) -> Dict[str, float]:
+        """Public helper used by Simulator to charge shipment costs without changing shipment logic."""
+        return self._avg_costs_by_child(parent_id)
+

@@ -17,7 +17,12 @@ class MetricsRow:
     received: int
     phase: str = "EOD"
     demand: int = 0             
-    fulfilled_external: int = 0  
+    fulfilled_external: int = 0
+    holding_cost: float = 0.0
+    backlog_cost: float = 0.0
+    ordering_cost: float = 0.0
+    transport_cost: float = 0.0
+    total_cost: float = 0.0
 
 @dataclass
 class Simulator:
@@ -41,6 +46,8 @@ class Simulator:
             orders_today: Dict[str, int]   = {nid: 0 for nid in self.network.nodes}
             demand_today = {nid: 0 for nid in self.network.nodes}
             fulfilled_today = {nid: 0 for nid in self.network.nodes}
+            ordering_cost_today: Dict[str, float] = {nid: 0.0 for nid in self.network.nodes}
+            transport_cost_today: Dict[str, float] = {nid: 0.0 for nid in self.network.nodes}
 
             # 1) Arrivals
             for nid in topo:
@@ -92,7 +99,11 @@ class Simulator:
                 def _on_ship(p, c, tt, L, qty):
                     self.shipments_log.append({"t_ship": tt, "parent": p, "child": c, "lead_time": L, "qty": qty})
 
-                parent.process_child_orders(t, child_nodes, lt_map, on_ship=_on_ship)
+                shipped = parent.process_child_orders(t, child_nodes, lt_map, on_ship=_on_ship)
+
+                avg_cost = self.network.transport_cost_average_by_child(parent_id)
+                for c, q in shipped.items():
+                    transport_cost_today[parent_id] += float(avg_cost.get(c, 0.0)) * q
 
             if mode == "detailed":
                 for nid in topo:
@@ -101,6 +112,13 @@ class Simulator:
             # 4) Place upstream orders
             for nid in topo:
                 node = self.network.nodes[nid]
+                hold_cost = float(node.on_hand) * float(node.holding_cost)
+                # backlog penalty only on external (retailer); warehouses typically don't have external backorders
+                back_cost = float(node.backlog_external) * float(node.shortage_cost) if node.node_type == 'retailer' else 0.0
+                ord_cost  = ordering_cost_today[nid]
+                trans_cost = transport_cost_today[nid]
+                tot_cost = hold_cost + back_cost + ord_cost + trans_cost
+
                 parent_id = self.network.parent_of(nid)
                 if parent_id is None:
                     continue
@@ -124,6 +142,7 @@ class Simulator:
                     )
                 if q > 0:
                     orders_waiting.setdefault(parent_id, []).append((t + self.order_processing_delay, nid, q))
+                    ordering_cost_today[nid] += float(node.order_cost_fixed) + float(node.order_cost_per_unit) * float(q)
                 orders_today[nid] = q
 
                 if mode == "detailed":
@@ -137,7 +156,12 @@ class Simulator:
                     orders_to_parent=orders_today[nid],
                     phase="EOD",
                     demand=demand_today[nid],
-                    fulfilled_external=fulfilled_today[nid]
+                    fulfilled_external=fulfilled_today[nid],
+                    holding_cost=hold_cost,
+                    backlog_cost=back_cost,
+                    ordering_cost=ord_cost,
+                    transport_cost=trans_cost,
+                    total_cost=tot_cost
                 )
 
             # Safety
@@ -148,7 +172,9 @@ class Simulator:
         return self.metrics
 
     def _record(self, t: int, nid: str, received: int, orders_to_parent: int,
-                phase: str = "EOD", demand: int = 0, fulfilled_external: int = 0):
+            phase: str = "EOD", demand: int = 0, fulfilled_external: int = 0,
+            holding_cost: float = 0.0, backlog_cost: float = 0.0,
+            ordering_cost: float = 0.0, transport_cost: float = 0.0, total_cost: float = 0.0):
         node = self.network.nodes[nid]
         self.metrics.append(MetricsRow(
             t=t, node_id=nid, on_hand=node.on_hand,
@@ -157,8 +183,12 @@ class Simulator:
             pipeline_in=node.total_pipeline_in(),
             orders_to_parent=orders_to_parent,
             received=received, phase=phase,
-            demand=demand, fulfilled_external=fulfilled_external
+            demand=demand, fulfilled_external=fulfilled_external,
+            holding_cost=holding_cost, backlog_cost=backlog_cost,
+            ordering_cost=ordering_cost, transport_cost=transport_cost,
+            total_cost=total_cost
         ))
+
 
     def _topological_order(self) -> List[str]:
         indeg = {nid: 0 for nid in self.network.nodes}
