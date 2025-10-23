@@ -5,6 +5,7 @@ import argparse
 import pandas as pd
 import sys
 from pathlib import Path
+import numpy as np
 
 # --- make project imports work even when launched via VS Code Run button ---
 ROOT = Path(__file__).resolve().parents[1]
@@ -248,6 +249,63 @@ def main():
         out_det = os.path.join(args.outdir, "opt_results_detailed.csv")
         df_det.to_csv(out_det, index=False)
         print(f"[detailed] wrote {out_det}")
+
+    def _compute_kpis(df):
+        
+        out = []
+
+        # Retailer-level demand/service
+        is_eod = df["phase"] == "EOD"
+        dfe = df[is_eod].copy()
+
+        # Per-node aggregates
+        grp = dfe.groupby("node_id")
+        agg = grp.agg(
+            demand_sum=("demand", "sum"),
+            fulfilled_sum=("fulfilled_external", "sum"),
+            onhand_avg=("on_hand", "mean"),
+            backlog_ext_avg=("backlog_external", "mean"),
+            backlog_child_avg=("backlog_children", "mean"),
+            pipeline_avg=("pipeline_in", "mean"),
+            orders_var=("orders_to_parent", "var"),
+            orders_mean=("orders_to_parent", "mean"),
+            demand_var=("demand", "var"),
+        ).reset_index()
+
+
+        # Fill rate (retailer service level)
+        agg["fill_rate"] = np.where(agg["demand_sum"] > 0,
+                                    agg["fulfilled_sum"] / agg["demand_sum"], np.nan)
+
+        # Bullwhip (node-level): Var(orders)/Var(demand) — defined for nodes with demand stream
+        agg["bullwhip_ratio"] = np.where(agg["demand_var"] > 0,
+                                        agg["orders_var"] / agg["demand_var"], np.nan)
+
+        # Overall KPIs
+        overall = {
+            "node_id": "_OVERALL_",
+            "demand_sum": agg["demand_sum"].sum(),
+            "fulfilled_sum": agg["fulfilled_sum"].sum(),
+            "onhand_avg": agg["onhand_avg"].mean(),
+            "backlog_ext_avg": agg["backlog_ext_avg"].mean(),
+            "backlog_child_avg": agg["backlog_child_avg"].mean(),
+            "pipeline_avg": agg["pipeline_avg"].mean(),
+            "orders_var": agg["orders_var"].mean(),
+            "orders_mean": agg["orders_mean"].mean(),
+            "demand_var": agg["demand_var"].mean(),
+        }
+        overall["fill_rate"] = (overall["fulfilled_sum"] / overall["demand_sum"]
+                                if overall["demand_sum"] > 0 else np.nan)
+        overall["bullwhip_ratio"] = (overall["orders_var"] / overall["demand_var"]
+                                    if overall["demand_var"] and overall["demand_var"] > 0 else np.nan)
+
+        out_df = pd.concat([agg, pd.DataFrame([overall])], ignore_index=True)
+        return out_df
+
+    kpi_df = _compute_kpis(df_sum)
+    out_kpi = os.path.join(args.outdir, "kpis_summary.csv")
+    kpi_df.to_csv(out_kpi, index=False)
+    print(f"[kpis] wrote {out_kpi}")
 
 if __name__ == "__main__":
     main()
