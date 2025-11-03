@@ -147,9 +147,16 @@ class Simulator:
 
                 if mode == "detailed":
                     self._record(t, nid, received=0, orders_to_parent=q, phase="after_ordering")
-
-            # 5) EOD snapshot
+                    
+            # 5) EOD snapshot (after demand served, before next arrivals)
             for nid in topo:
+                node = self.network.nodes[nid]
+                hold_cost = float(node.on_hand) * float(node.holding_cost)
+                back_cost = float(node.backlog_external) * float(node.shortage_cost) if node.node_type == 'retailer' else 0.0
+                ord_cost = ordering_cost_today[nid]
+                trans_cost = transport_cost_today[nid]
+                tot_cost = hold_cost + back_cost + ord_cost + trans_cost
+
                 self._record(
                     t, nid,
                     received=received_today[nid],
@@ -163,6 +170,7 @@ class Simulator:
                     transport_cost=trans_cost,
                     total_cost=tot_cost
                 )
+
 
             # Safety
             for nid, node in self.network.nodes.items():

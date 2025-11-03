@@ -101,8 +101,8 @@ class Network:
             if total_w <= 0:
                 out[c] = 0.0
                 continue
-            # weighted average of per-unit transport costs
-            cost = sum(w * e.transport_cost_per_unit for w, e in zip(weights, e_list)) / total_w
+            # ✅ Fix: Treat None as 0.0 to avoid TypeError
+            cost = sum(w * (e.transport_cost_per_unit or 0.0) for w, e in zip(weights, e_list)) / total_w
             out[c] = float(cost)
         return out
 

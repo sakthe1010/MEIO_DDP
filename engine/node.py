@@ -30,7 +30,20 @@ class Node:
     backlog_children: Dict[str, int] = field(default_factory=dict)  # per child
     pipeline_in: List[Shipment] = field(default_factory=list)       # shipments en route TO this node
     inbound_orders_queue: List[IncomingOrder] = field(default_factory=list)  # child orders to process
-
+    def __init__(self, node_id, node_type, policy, **kwargs):
+        # backward compatibility: allow 'on_hand' as alias for 'initial_inventory'
+        if "on_hand" in kwargs and "initial_inventory" not in kwargs:
+            kwargs["initial_inventory"] = kwargs.pop("on_hand")
+        super().__setattr__("node_id", node_id)
+        super().__setattr__("node_type", node_type)
+        super().__setattr__("policy", policy)
+        for k, v in kwargs.items():
+            super().__setattr__(k, v)
+        self.on_hand = self.initial_inventory
+        self.backlog_external = 0
+        self.backlog_children = {}
+        self.pipeline_in = []
+        self.inbound_orders_queue = []
     def __post_init__(self):
         self.on_hand = self.initial_inventory
 
@@ -104,7 +117,7 @@ class Node:
                     self.on_hand -= ship
                 L = int(lead_time_sampler_by_child[child]())
                 # ✅ BUGFIX #2: avoid same-day arrivals getting “lost”; earliest arrival is next day
-                arrival = t + max(1, L)
+                arrival = t + L if L > 0 else t + 1
                 child_nodes[child].pipeline_in.append(Shipment(arrival_time=arrival, qty=ship))
                 shipped[child] = ship
                 if on_ship:
