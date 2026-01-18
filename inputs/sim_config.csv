@@ -1,0 +1,6 @@
+parameter,value
+seed,42
+time_horizon,90
+tail_days,90
+strategy,clip
+warmup_days,0

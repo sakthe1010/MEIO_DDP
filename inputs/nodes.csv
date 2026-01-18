@@ -1,0 +1,7 @@
+node_id,node_type,initial_inventory,holding_cost,shortage_cost,order_cost_fixed,order_cost_per_unit,infinite_supply
+Supplier,supplier,0,0.01,0.0,20.0,0.005,1
+W1,warehouse,1736,0.02,0.0,15.0,0.01,0
+W2,warehouse,1849,0.02,0.0,15.0,0.01,0
+R1,retailer,588,0.03,0.5,0.0,0.0,0
+R2,retailer,481,0.03,0.5,0.0,0.0,0
+R3,retailer,1357,0.03,0.5,0.0,0.0,0

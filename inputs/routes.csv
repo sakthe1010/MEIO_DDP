@@ -1,0 +1,6 @@
+from_node,to_node,lead_time,transport_cost_per_unit
+Supplier,W1,5,0.03
+Supplier,W2,6,0.03
+W1,R1,2,0.02
+W1,R2,3,0.025
+W2,R3,4,0.02

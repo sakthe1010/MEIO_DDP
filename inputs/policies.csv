@@ -1,0 +1,9 @@
+node_id,policy_type,param_name,param_value
+Supplier,base_stock,base_stock_level,0
+
+W1,base_stock,base_stock_level,1736
+W2,base_stock,base_stock_level,1849
+
+R1,base_stock,base_stock_level,588
+R2,base_stock,base_stock_level,481
+R3,base_stock,base_stock_level,1357
