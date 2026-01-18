@@ -1,0 +1,4 @@
+node_id,source_type,source_path,time_col,quantity_col,fill_strategy
+R1,csv,inputs/demand_data/R1.csv,date,quantity,wrap
+R2,csv,inputs/demand_data/R2.csv,date,quantity,wrap
+R3,csv,inputs/demand_data/R3.csv,date,quantity,wrap
