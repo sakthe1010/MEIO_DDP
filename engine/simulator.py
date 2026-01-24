@@ -100,6 +100,8 @@ class Simulator:
 
                 def _on_ship(p, c, tt, L, qty):
                     self.shipments_log.append({"t_ship": tt, "parent": p, "child": c, "lead_time": L, "qty": qty})
+                    child_node = self.network.nodes[c]
+                    child_node.placed_orders = max(0, child_node.placed_orders - qty)
 
                 shipped = parent.process_child_orders(t, child_nodes, lt_map, on_ship=_on_ship)
 
@@ -131,7 +133,7 @@ class Simulator:
                         on_hand=node.on_hand,
                         backlog_external=node.backlog_external,
                         backlog_children=node.total_backlog_children(),
-                        pipeline_in=node.total_pipeline_in(),
+                        pipeline_in=node.total_pipeline_in() + node.placed_orders,  # NEW: include placed but not yet shipped
                         t=t,                      # <— NEW
                     )
                 except TypeError:
@@ -140,12 +142,14 @@ class Simulator:
                         on_hand=node.on_hand,
                         backlog_external=node.backlog_external,
                         backlog_children=node.total_backlog_children(),
-                        pipeline_in=node.total_pipeline_in(),
+                        pipeline_in=node.total_pipeline_in() + node.placed_orders,  # NEW: include placed but not yet shipped
                     )
                 if q > 0:
                     orders_waiting.setdefault(parent_id, []).append((t + self.order_processing_delay, nid, q))
                     ordering_cost_today[nid] += float(node.order_cost_fixed) + float(node.order_cost_per_unit) * float(q)
                 orders_today[nid] = q
+
+                node.placed_orders += q  # NEW tracking
 
                 self.orders_log.append({
                     "time": t,

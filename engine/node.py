@@ -44,6 +44,7 @@ class Node:
         self.backlog_children = {}
         self.pipeline_in = []
         self.inbound_orders_queue = []
+        self.placed_orders = 0
     def __post_init__(self):
         self.on_hand = self.initial_inventory
 
