@@ -292,6 +292,23 @@ def main():
 
     sim_sum = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
     metrics_sum = sim_sum.run(mode="summary")
+    pd.DataFrame(sim_sum.inventory_log).to_csv(run_dir / "inventory_log.csv", index=False)
+    pd.DataFrame(sim_sum.orders_log).to_csv(run_dir / "orders_log.csv", index=False)
+
+    shipments_df = pd.DataFrame(sim_sum.shipments_log)
+    if not shipments_df.empty:
+        shipments_df["arrival_time"] = (
+            shipments_df["t_ship"] + shipments_df["lead_time"]
+        )
+        shipments_df.rename(columns={
+            "parent": "from_node",
+            "child": "to_node"
+        }, inplace=True)
+
+        shipments_df.to_csv(
+            run_dir / "shipments_log.csv", index=False
+        )
+
     df_sum = pd.DataFrame([m.__dict__ for m in metrics_sum])
     df_sum.to_csv(run_dir / "opt_results_summary.csv", index=False)
 

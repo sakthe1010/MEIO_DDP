@@ -32,6 +32,8 @@ class Simulator:
     order_processing_delay: int = 1
 
     metrics: List[MetricsRow] = field(default_factory=list)
+    inventory_log: List[Dict] = field(default_factory=list)   # DEPRECATED
+    orders_log: List[Dict] = field(default_factory=list)       # DEPRECATED
     shipments_log: List[Dict] = field(default_factory=list)   # NEW: route verification
 
     def run(self, mode: str = "summary") -> List[MetricsRow]:
@@ -145,6 +147,13 @@ class Simulator:
                     ordering_cost_today[nid] += float(node.order_cost_fixed) + float(node.order_cost_per_unit) * float(q)
                 orders_today[nid] = q
 
+                self.orders_log.append({
+                    "time": t,
+                    "node_id": nid,
+                    "order_qty": q,
+                    "policy_type": type(policy).__name__,
+                })
+
                 if mode == "detailed":
                     self._record(t, nid, received=0, orders_to_parent=q, phase="after_ordering")
                     
@@ -170,6 +179,15 @@ class Simulator:
                     transport_cost=trans_cost,
                     total_cost=tot_cost
                 )
+
+                self.inventory_log.append({
+                    "time": t,
+                    "node_id": nid,
+                    "on_hand": node.on_hand,
+                    "backlog_external": node.backlog_external,
+                    "backlog_children": node.total_backlog_children(),
+                    "pipeline_in": node.total_pipeline_in(),
+                })
 
 
             # Safety
