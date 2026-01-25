@@ -1,6 +1,8 @@
-from_node,to_node,lead_time,transport_cost_per_unit
-Supplier,W1,5,0.03
-Supplier,W2,6,0.03
-W1,R1,2,0.02
-W1,R2,3,0.025
-W2,R3,4,0.02
+from_node,to_node,route_id,mode,capacity,cost_full,cost_half,cost_quarter,lead_time
+Supplier,W1,Supplier_W1,1,2000,1500,900,500,5
+Supplier,W2,Supplier_W2,1,2000,1500,900,500,6
+W1,R1,W1_R1,1,2000,1000,600,350,2
+W1,R2,W1_R2,1,2000,1100,650,380,3
+W2,R3,W2_R3,1,2000,1000,600,350,4
+
+

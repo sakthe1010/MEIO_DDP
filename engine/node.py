@@ -86,7 +86,8 @@ class Node:
         self, t: int,
         child_nodes: Dict[str, "Node"],
         lead_time_sampler_by_child: Dict[str, Callable[[], int]],
-        on_ship: Optional[Callable[[str, str, int, int, int], None]] = None,  # (parent, child, t, L, qty)
+        on_ship: Optional[Callable[[str, str, int, int, int], None]] = None,
+        transport_constraint_fn = None  # (parent, child, t, L, qty)
     ) -> Dict[str, int]:
         """
         Serve children (backlog + today's new orders). Schedule shipments to child's pipeline_in.
@@ -112,6 +113,12 @@ class Node:
                 ship = need
             else:
                 ship = min(self.on_hand, need)
+
+            # --- TRANSPORT CONSTRAINT (NEW) ---
+            if transport_constraint_fn and ship > 0:
+                ship = transport_constraint_fn(child, ship)
+
+            # print(f"[DEBUG] Node {self.node_id} → {child}: need={need}, ship_qty_after_transport={ship}")
 
             if ship > 0:
                 if not self.infinite_supply:

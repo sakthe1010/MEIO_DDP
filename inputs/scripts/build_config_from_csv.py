@@ -168,30 +168,43 @@ def load_policies(path, nodes):
 # =========================
 
 def load_routes(path, nodes):
-    df = read_csv(path, ["from_node", "to_node", "lead_time", "transport_cost_per_unit"])
+    df = read_csv(
+        path,
+        [
+            "from_node",
+            "to_node",
+            "route_id",
+            "mode",
+            "capacity",
+            "cost_full",
+            "cost_half",
+            "cost_quarter",
+            "lead_time",
+        ],
+    )
 
     edges = []
+
     for _, r in df.iterrows():
         if r["from_node"] not in nodes:
             error(f"Route from unknown node '{r['from_node']}'")
         if r["to_node"] not in nodes:
             error(f"Route to unknown node '{r['to_node']}'")
-        if r["lead_time"] < 0:
-            error(f"Negative lead_time on route {r['from_node']} → {r['to_node']}")
-        if r["transport_cost_per_unit"] < 0:
-            error(
-                f"Negative transport cost on route {r['from_node']} → {r['to_node']}"
-            )
 
         edges.append(
             {
                 "from": r["from_node"],
                 "to": r["to_node"],
+                "route_id": r["route_id"],
+                "mode": int(r["mode"]),
+                "capacity": float(r["capacity"]),
+                "cost_full": float(r["cost_full"]),
+                "cost_half": float(r["cost_half"]),
+                "cost_quarter": float(r["cost_quarter"]),
                 "lead_time": {
                     "type": "deterministic",
                     "value": int(r["lead_time"]),
                 },
-                "transport_cost_per_unit": float(r["transport_cost_per_unit"]),
             }
         )
 

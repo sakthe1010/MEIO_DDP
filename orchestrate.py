@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent
 
 CSV_SCRIPTS = ROOT / "inputs" / "scripts"     # build_config_from_csv.py lives here
 SIM_SCRIPTS = ROOT / "scripts"                # run_simulation.py lives here
-CONFIG_DIR = ROOT / "config"
+CONFIG_DIR = ROOT / "inputs" / "config" 
 OUTPUTS_DIR = ROOT / "outputs"
 
 

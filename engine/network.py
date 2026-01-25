@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Callable, Optional
 import random
 from engine.node import Node
+from engine.transport import TransportOption
+
 
 @dataclass
 class Edge:
@@ -11,6 +13,13 @@ class Edge:
     lead_time_sampler: Callable[[], int]
     share: Optional[float] = None  # optional weight for route selection
     transport_cost_per_unit: Optional[float] = None  # optional cost per unit transported
+    # NEW transport attributes
+    route_id: Optional[str] = None
+    mode: Optional[int] = None
+    capacity: Optional[float] = None
+    cost_full: Optional[float] = None
+    cost_half: Optional[float] = None
+    cost_quarter: Optional[float] = None
 def _det_lt_one():
     return 1
 
@@ -47,12 +56,31 @@ class Network:
         *,
         lead_time_sampler: Optional[Callable[[], int]] = None,
         share: Optional[float] = None,
+        mode: int = 1,
+        capacity: float = 100.0,
+        cost_full: float = 100.0,
+        cost_half: float = 60.0,
+        cost_quarter: float = 35.0,
+        route_id: Optional[str] = None
     ) -> None:
         """Add a lane. Defaults to deterministic L=1 if no sampler is given."""
         sampler = lead_time_sampler or _det_lt_one
         key = (parent_id, child_id)
-        self.edges.setdefault(key, []).append(Edge(parent=parent_id, child=child_id, lead_time_sampler=sampler, share=share))
-        # keep adjacency maps in sync
+        self.edges.setdefault(key, []).append(
+            Edge(
+                parent=parent_id, 
+                child=child_id, 
+                lead_time_sampler=sampler, 
+                share=share,
+                # ADD THESE LINES:
+                mode=mode,
+                capacity=capacity,
+                cost_full=cost_full,
+                cost_half=cost_half,
+                cost_quarter=cost_quarter,
+                route_id=route_id
+            )
+        )
         if child_id in self.parents_of and self.parents_of[child_id] != parent_id:
             raise ValueError(f"Child {child_id} has multiple parents (single-sourcing enforced).")
         self.parents_of[child_id] = parent_id
@@ -90,6 +118,41 @@ class Network:
             e_list = self.edges[(parent_id, c)]
             out[c] = e_list[0].lead_time_sampler if len(e_list) == 1 else self._mixed_sampler(e_list)
         return out
+    
+    def get_transport_options(self, parent_id: str, child_id: str) -> List[TransportOption]:
+        """
+        Return all transport options between parent and child.
+        Used by TransportPlanner.
+        """
+        key = (parent_id, child_id)
+        if key not in self.edges:
+            return []
+
+        options: List[TransportOption] = []
+
+        for e in self.edges[key]:
+            # --- FIX STARTS HERE ---
+            # If capacity is missing (None), force a default instead of skipping!
+            current_capacity = float(e.capacity) if e.capacity is not None else 100.0
+            
+            # Optional: Debug print to confirm this was the issue
+            if e.capacity is None:
+                print(f"[WARNING] Edge {parent_id}->{child_id} had None capacity. Defaulting to 100.0")
+            # -----------------------
+
+            options.append(
+                TransportOption(
+                    route_id=e.route_id or f"{parent_id}_{child_id}",
+                    mode=e.mode if e.mode is not None else 1,
+                    capacity=current_capacity,  # <--- Use the safe variable
+                    cost_full=float(e.cost_full) if e.cost_full is not None else 100.0,
+                    cost_half=float(e.cost_half) if e.cost_half is not None else 60.0,
+                    cost_quarter=float(e.cost_quarter) if e.cost_quarter is not None else 35.0,
+                    lead_time=e.lead_time_sampler(),
+                )
+            )
+
+        return options
     
     def _avg_costs_by_child(self, parent_id: str) -> Dict[str, float]:
         """Share-weighted average transport cost per child for a given parent."""

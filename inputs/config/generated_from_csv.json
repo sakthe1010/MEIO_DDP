@@ -94,47 +94,72 @@
     {
       "from": "Supplier",
       "to": "W1",
+      "route_id": "Supplier_W1",
+      "mode": 1,
+      "capacity": 2000.0,
+      "cost_full": 1500.0,
+      "cost_half": 900.0,
+      "cost_quarter": 500.0,
       "lead_time": {
         "type": "deterministic",
         "value": 5
-      },
-      "transport_cost_per_unit": 0.03
+      }
     },
     {
       "from": "Supplier",
       "to": "W2",
+      "route_id": "Supplier_W2",
+      "mode": 1,
+      "capacity": 2000.0,
+      "cost_full": 1500.0,
+      "cost_half": 900.0,
+      "cost_quarter": 500.0,
       "lead_time": {
         "type": "deterministic",
         "value": 6
-      },
-      "transport_cost_per_unit": 0.03
+      }
     },
     {
       "from": "W1",
       "to": "R1",
+      "route_id": "W1_R1",
+      "mode": 1,
+      "capacity": 2000.0,
+      "cost_full": 1000.0,
+      "cost_half": 600.0,
+      "cost_quarter": 350.0,
       "lead_time": {
         "type": "deterministic",
         "value": 2
-      },
-      "transport_cost_per_unit": 0.02
+      }
     },
     {
       "from": "W1",
       "to": "R2",
+      "route_id": "W1_R2",
+      "mode": 1,
+      "capacity": 2000.0,
+      "cost_full": 1100.0,
+      "cost_half": 650.0,
+      "cost_quarter": 380.0,
       "lead_time": {
         "type": "deterministic",
         "value": 3
-      },
-      "transport_cost_per_unit": 0.025
+      }
     },
     {
       "from": "W2",
       "to": "R3",
+      "route_id": "W2_R3",
+      "mode": 1,
+      "capacity": 2000.0,
+      "cost_full": 1000.0,
+      "cost_half": 600.0,
+      "cost_quarter": 350.0,
       "lead_time": {
         "type": "deterministic",
         "value": 4
-      },
-      "transport_cost_per_unit": 0.02
+      }
     }
   ],
   "demand": [

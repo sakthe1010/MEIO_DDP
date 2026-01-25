@@ -203,7 +203,12 @@ def build_from_config(cfg_or_path):
             order_cost_per_unit=nd.get("order_cost_per_unit", 0.0),
         )
 
-    edges = {}
+    net = Network()
+    # add nodes
+    for node in nodes.values():
+        net.add_node(node)
+
+    # add edges PROPERLY
     for e in cfg["edges"]:
         lt = e["lead_time"]
         lt_seed = lt.get("seed", top_seed)
@@ -215,19 +220,28 @@ def build_from_config(cfg_or_path):
             sampler = NormalIntLeadTime(lt["mean"], lt["std"], lt_rng).sample
         else:
             raise ValueError("Unknown lead time type")
+        
+        # if "capacity" not in e or float(e["capacity"]) <= 0:
+        #     raise ValueError(
+        #         f"Invalid or missing capacity for route {e.get('route_id')} "
+        #         f"({e['from']} -> {e['to']})"
+        #     )
 
-        key = (e["from"], e["to"])
-        edges.setdefault(key, []).append(
-            Edge(
-                parent=e["from"],
-                child=e["to"],
-                lead_time_sampler=sampler,
-                share=e.get("share"),
-                transport_cost_per_unit=e.get("transport_cost_per_unit", 0.0)
-            )
+        # capacity = float(e["capacity"])
+
+
+        net.add_edge(
+            parent_id=e["from"],
+            child_id=e["to"],
+            route_id=e.get("route_id"),
+            mode=e.get("mode", 1),
+            capacity=e.get("capacity", 100.0),
+            cost_full=e.get("cost_full", 0.0),
+            cost_half=e.get("cost_half", 0.0),
+            cost_quarter=e.get("cost_quarter", 0.0),
+            lead_time_sampler=sampler
         )
 
-    net = Network(nodes=nodes, edges=edges)
 
     demand_by_node = {}
     for d in cfg.get("demand", []):

@@ -4,6 +4,8 @@ from typing import Dict, List, Tuple
 from engine.network import Network
 from engine.node import Node
 from policies.base_stock import BasePolicy
+from engine.transport import TransportPlanner
+
 
 @dataclass
 class MetricsRow:
@@ -38,6 +40,7 @@ class Simulator:
 
     def run(self, mode: str = "summary") -> List[MetricsRow]:
         topo = self._topological_order()
+        planner = TransportPlanner()
         # parent_id -> list of (process_time, child_id, qty)
         orders_waiting: Dict[str, List[Tuple[int, str, int]]] = {}
         demand_today: Dict[str, int] = {}
@@ -103,11 +106,35 @@ class Simulator:
                     child_node = self.network.nodes[c]
                     child_node.placed_orders = max(0, child_node.placed_orders - qty)
 
-                shipped = parent.process_child_orders(t, child_nodes, lt_map, on_ship=_on_ship)
+                def _transport_checker(child_id, proposed_qty):
+                    options = self.network.get_transport_options(parent_id, child_id)
+                    planned = planner.plan(
+                        requested_volume=proposed_qty,
+                        options=options
+                    )
+                    # print(parent_id, child_id, options)
+                    return sum(s.qty for s in planned)
 
-                avg_cost = self.network.transport_cost_average_by_child(parent_id)
-                for c, q in shipped.items():
-                    transport_cost_today[parent_id] += float(avg_cost.get(c, 0.0)) * q
+                shipped = parent.process_child_orders(t, child_nodes, lt_map, on_ship=_on_ship, transport_constraint_fn=_transport_checker)
+
+
+                # avg_cost = self.network.transport_cost_average_by_child(parent_id)
+                # for c, q in shipped.items():
+                #     transport_cost_today[parent_id] += float(avg_cost.get(c, 0.0)) * q
+
+                # -------- NEW TRANSPORT LOGIC --------
+                for child, ship_qty in shipped.items():
+                    transport_options = self.network.get_transport_options(parent_id, child)
+
+                    planned = planner.plan(
+                        requested_volume=ship_qty,
+                        options=transport_options
+                    )
+
+                    for s in planned:
+                        transport_cost_today[parent_id] += s.cost
+                # ------------------------------------
+
 
             if mode == "detailed":
                 for nid in topo:
@@ -221,6 +248,9 @@ class Simulator:
 
 
     def _topological_order(self) -> List[str]:
+        # print("NODES:", self.network.nodes.keys())
+        # print("EDGES:", self.network.edges.keys())
+
         indeg = {nid: 0 for nid in self.network.nodes}
         for (p, c) in self.network.edges:
             indeg[c] += 1
