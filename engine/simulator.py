@@ -31,7 +31,7 @@ class Simulator:
     network: Network
     demand_by_node: Dict[str, callable]   # node_id -> DemandGenerator.sample
     T: int
-    order_processing_delay: int = 1
+    order_processing_delay: int = 0
 
     metrics: List[MetricsRow] = field(default_factory=list)
     inventory_log: List[Dict] = field(default_factory=list)   # DEPRECATED
@@ -218,6 +218,7 @@ class Simulator:
                     "backlog_external": node.backlog_external,
                     "backlog_children": node.total_backlog_children(),
                     "pipeline_in": node.total_pipeline_in(),
+                    "placed_orders": node.placed_orders,
                 })
 
 

@@ -118,7 +118,7 @@ class Node:
             if transport_constraint_fn and ship > 0:
                 ship = transport_constraint_fn(child, ship)
 
-            # print(f"[DEBUG] Node {self.node_id} → {child}: need={need}, ship_qty_after_transport={ship}")
+            print(f"[DEBUG] Node {self.node_id} → {child}: need={need}, ship_qty_after_transport={ship}")
 
             if ship > 0:
                 if not self.infinite_supply:

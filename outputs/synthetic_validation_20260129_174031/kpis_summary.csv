@@ -1,0 +1,5 @@
+node_id,demand_sum,fulfilled_sum,fill_rate
+R1,260,260,1.0
+Supplier,0,0,
+W1,0,0,
+_OVERALL_,260,260,1.0

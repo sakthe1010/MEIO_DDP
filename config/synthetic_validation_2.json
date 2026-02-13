@@ -1,0 +1,52 @@
+{
+  "seed": 42,
+  "time_horizon": 50,
+
+  "nodes": [
+    {
+      "id": "S1",
+      "type": "supplier",
+      "policy": { "type": "base_stock", "base_stock_level": 100000 },
+      "initial_inventory": 0,
+      "infinite_supply": true
+    },
+    {
+      "id": "W1",
+      "type": "warehouse",
+      "policy": {"type": "base_stock", "base_stock_level": 60 },
+      "initial_inventory": 50
+    },
+    {
+      "id": "R1",
+      "type": "retailer",
+      "policy": { "type": "base_stock", "base_stock_level": 30 },
+      "initial_inventory": 20,
+      "shortage_cost": 10.0
+    }
+  ],
+
+  "edges": [
+    {
+      "from": "S1",
+      "to": "W1",
+      "lead_time": { "type": "deterministic", "value": 2 },
+      "capacity": 5
+    },
+    {
+      "from": "W1",
+      "to": "R1",
+      "lead_time": { "type": "deterministic", "value": 1 },
+      "capacity": 25
+    }
+  ],
+
+  "demand": [
+    {
+      "node": "R1",
+      "generator": {
+        "type": "deterministic",
+        "value": 5
+      }
+    }
+  ]
+}
