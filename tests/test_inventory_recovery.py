@@ -3,13 +3,15 @@ from scripts.run_simulation import build_from_config
 from engine.simulator import Simulator
 
 def test_inventory_recovery_from_backlog():
+
     cfg = {
+        "skus": ["SKU1"],
         "time_horizon": 30,
         "nodes": [
             {"id": "Supplier", "type": "supplier", "infinite_supply": True,
-             "policy": {"type": "base_stock", "base_stock_level": 0}},
-            {"id": "R", "type": "retailer", "initial_inventory": 10,
-             "policy": {"type": "base_stock", "base_stock_level": 50},
+             "policy": {"SKU1": {"type": "base_stock", "base_stock_level": 0}}},
+            {"id": "R", "type": "retailer", "initial_inventory": {"SKU1": 10},
+             "policy": {"SKU1": {"type": "base_stock", "base_stock_level": 50}},
              "holding_cost": 0.5, "shortage_cost": 3.0}
         ],
         "edges": [
@@ -17,7 +19,7 @@ def test_inventory_recovery_from_backlog():
              "lead_time": {"type": "deterministic", "value": 3}}
         ],
         "demand": [
-            {"node": "R", "generator": {"type": "deterministic", "value": 8}}
+            {"node": "R", "sku": "SKU1", "generator": {"type": "deterministic", "value": 8}}
         ]
     }
 

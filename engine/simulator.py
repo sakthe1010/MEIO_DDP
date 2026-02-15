@@ -1,16 +1,19 @@
-# engine/simulator.py
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 from engine.network import Network
 from engine.node import Node
-from policies.base_stock import BasePolicy
 from engine.transport import TransportPlanner
 
+
+# ============================================================
+# Metrics now SKU-aware
+# ============================================================
 
 @dataclass
 class MetricsRow:
     t: int
     node_id: str
+    sku: str
     on_hand: int
     backlog_external: int
     backlog_children: int
@@ -18,7 +21,7 @@ class MetricsRow:
     orders_to_parent: int
     received: int
     phase: str = "EOD"
-    demand: int = 0             
+    demand: int = 0
     fulfilled_external: int = 0
     holding_cost: float = 0.0
     backlog_cost: float = 0.0
@@ -26,237 +29,310 @@ class MetricsRow:
     transport_cost: float = 0.0
     total_cost: float = 0.0
 
+
 @dataclass
 class Simulator:
     network: Network
-    demand_by_node: Dict[str, callable]   # node_id -> DemandGenerator.sample
+    demand_by_node: Dict[str, Dict[str, callable]]  # node -> sku -> demand_fn
     T: int
     order_processing_delay: int = 0
 
     metrics: List[MetricsRow] = field(default_factory=list)
-    inventory_log: List[Dict] = field(default_factory=list)   # DEPRECATED
-    orders_log: List[Dict] = field(default_factory=list)       # DEPRECATED
-    shipments_log: List[Dict] = field(default_factory=list)   # NEW: route verification
+    inventory_log: List[Dict] = field(default_factory=list)
+    orders_log: List[Dict] = field(default_factory=list)
+    shipments_log: List[Dict] = field(default_factory=list)
+
+    # ============================================================
+    # MAIN RUN
+    # ============================================================
 
     def run(self, mode: str = "summary") -> List[MetricsRow]:
+
         topo = self._topological_order()
         planner = TransportPlanner()
-        # parent_id -> list of (process_time, child_id, qty)
-        orders_waiting: Dict[str, List[Tuple[int, str, int]]] = {}
-        demand_today: Dict[str, int] = {}
-        fulfilled_today: Dict[str, int] = {}
+
+        # parent_id -> list of (process_time, child_id, sku, qty)
+        orders_waiting: Dict[str, List[Tuple[int, str, str, int]]] = {}
 
         for t in range(self.T):
-            received_today: Dict[str, int] = {nid: 0 for nid in self.network.nodes}
-            orders_today: Dict[str, int]   = {nid: 0 for nid in self.network.nodes}
-            demand_today = {nid: 0 for nid in self.network.nodes}
-            fulfilled_today = {nid: 0 for nid in self.network.nodes}
-            ordering_cost_today: Dict[str, float] = {nid: 0.0 for nid in self.network.nodes}
-            transport_cost_today: Dict[str, float] = {nid: 0.0 for nid in self.network.nodes}
 
-            # 1) Arrivals
+            # -------------------------------
+            # DAILY TRACKERS
+            # -------------------------------
+            received_today = {}
+            orders_today = {}
+            ordering_cost_today = {}
+            transport_cost_today = {}
+
+            for nid in self.network.nodes:
+                node = self.network.nodes[nid]
+                received_today[nid] = {sku: 0 for sku in node.skus}
+                orders_today[nid] = {sku: 0 for sku in node.skus}
+                ordering_cost_today[nid] = {sku: 0.0 for sku in node.skus}
+                transport_cost_today[nid] = {sku: 0.0 for sku in node.skus}
+
+            # =====================================================
+            # 1) ARRIVALS
+            # =====================================================
+
             for nid in topo:
                 node = self.network.nodes[nid]
-                rec = node.receive_shipments(t)
-                received_today[nid] = rec
-                if mode == "detailed":
-                    self._record(t, nid, received=rec, orders_to_parent=0, phase="after_arrivals")
+                rec_dict = node.receive_shipments(t)
 
-            # 1a) Clear external backlog immediately after arrivals
+                for sku in node.skus:
+                    received_today[nid][sku] = rec_dict[sku]
+
+            # =====================================================
+            # 1a) CLEAR EXTERNAL BACKLOG
+            # =====================================================
+
             for nid in topo:
                 node = self.network.nodes[nid]
-                if node.node_type == 'retailer' and node.backlog_external > 0 and node.on_hand > 0:
-                    served_backlog = min(node.on_hand, node.backlog_external)
-                    node.on_hand -= served_backlog
-                    node.backlog_external -= served_backlog
-                    if mode == "detailed" and served_backlog > 0:
-                        self._record(t, nid, received=0, orders_to_parent=0, phase="after_backlog_clear")
 
-            # 2) External demand
+                if node.node_type == "retailer":
+
+                    for sku in node.skus:
+                        if node.backlog_external[sku] > 0 and node.on_hand[sku] > 0:
+                            served = min(node.on_hand[sku], node.backlog_external[sku])
+                            node.on_hand[sku] -= served
+                            node.backlog_external[sku] -= served
+
+            # =====================================================
+            # 2) EXTERNAL DEMAND
+            # =====================================================
+
+            demand_today = {}
+            fulfilled_today = {}
+
             for nid in topo:
                 node = self.network.nodes[nid]
-                if node.node_type == 'retailer':
-                    dgen = self.demand_by_node.get(nid, None)
-                    demand = int(dgen(t)) if dgen else 0
-                    fulfilled, unfilled = node.process_external_demand(demand)
-                    demand_today[nid] = demand
-                    fulfilled_today[nid] = fulfilled
-                    if mode == "detailed":
-                        self._record(t, nid, received=0, orders_to_parent=0, phase="after_demand")
+                demand_today[nid] = {}
+                fulfilled_today[nid] = {}
 
-            # 3) Parents process child orders due at t
-            due: Dict[str, List[Tuple[str, int]]] = {}
+                if node.node_type == "retailer":
+
+                    for sku in node.skus:
+
+                        dgen = self.demand_by_node.get(nid, {}).get(sku, None)
+                        demand = int(dgen(t)) if dgen else 0
+
+                        fulfilled, _ = node.process_external_demand(sku, demand)
+
+                        demand_today[nid][sku] = demand
+                        fulfilled_today[nid][sku] = fulfilled
+                else:
+                    for sku in node.skus:
+                        demand_today[nid][sku] = 0
+                        fulfilled_today[nid][sku] = 0
+
+            # =====================================================
+            # 3) PROCESS CHILD ORDERS
+            # =====================================================
+
+            due = {}
+
             for pid, lst in list(orders_waiting.items()):
-                take = [(c, q) for (tt, c, q) in lst if tt == t]
+                take = [(c, sku, q) for (tt, c, sku, q) in lst if tt == t]
                 if take:
                     due[pid] = take
-                orders_waiting[pid] = [(tt, c, q) for (tt, c, q) in lst if tt != t]
+
+                orders_waiting[pid] = [(tt, c, sku, q) for (tt, c, sku, q) in lst if tt != t]
                 if not orders_waiting[pid]:
                     del orders_waiting[pid]
 
             for parent_id, items in due.items():
+
                 parent = self.network.nodes[parent_id]
-                for (child, q) in items:
-                    parent.add_inbound_order(child, q)
+
+                for (child, sku, q) in items:
+                    parent.add_inbound_order(child, sku, q)
+
                 child_nodes = {c: self.network.nodes[c] for c in self.network.children(parent_id)}
                 lt_map = self.network.lead_time_sampler_by_child(parent_id)
 
-                def _on_ship(p, c, tt, L, qty):
-                    self.shipments_log.append({"t_ship": tt, "parent": p, "child": c, "lead_time": L, "qty": qty})
-                    child_node = self.network.nodes[c]
-                    child_node.placed_orders = max(0, child_node.placed_orders - qty)
+                def _on_ship(p, c, sku, tt, L, qty):
+                    self.shipments_log.append({
+                        "t_ship": tt,
+                        "parent": p,
+                        "child": c,
+                        "sku": sku,
+                        "lead_time": L,
+                        "qty": qty
+                    })
 
-                def _transport_checker(child_id, proposed_qty):
+                    child_node = self.network.nodes[c]
+                    child_node.placed_orders[sku] = max(
+                        0,
+                        child_node.placed_orders[sku] - qty
+                    )
+
+                def _transport_checker(child_id, sku, proposed_qty):
                     options = self.network.get_transport_options(parent_id, child_id)
                     planned = planner.plan(
                         requested_volume=proposed_qty,
                         options=options
                     )
-                    # print(parent_id, child_id, options)
                     return sum(s.qty for s in planned)
 
-                shipped = parent.process_child_orders(t, child_nodes, lt_map, on_ship=_on_ship, transport_constraint_fn=_transport_checker)
+                shipped = parent.process_child_orders(
+                    t,
+                    child_nodes,
+                    lt_map,
+                    on_ship=_on_ship,
+                    transport_constraint_fn=_transport_checker
+                )
 
+                # Charge transport cost
+                for (child, sku), ship_qty in shipped.items():
 
-                # avg_cost = self.network.transport_cost_average_by_child(parent_id)
-                # for c, q in shipped.items():
-                #     transport_cost_today[parent_id] += float(avg_cost.get(c, 0.0)) * q
-
-                # -------- NEW TRANSPORT LOGIC --------
-                for child, ship_qty in shipped.items():
-                    transport_options = self.network.get_transport_options(parent_id, child)
-
+                    options = self.network.get_transport_options(parent_id, child)
                     planned = planner.plan(
                         requested_volume=ship_qty,
-                        options=transport_options
+                        options=options
                     )
 
                     for s in planned:
-                        transport_cost_today[parent_id] += s.cost
-                # ------------------------------------
+                        transport_cost_today[parent_id][sku] += s.cost
 
+            # =====================================================
+            # 4) PLACE UPSTREAM ORDERS (PER SKU)
+            # =====================================================
 
-            if mode == "detailed":
-                for nid in topo:
-                    self._record(t, nid, received=0, orders_to_parent=0, phase="after_shipments")
-
-            # 4) Place upstream orders
             for nid in topo:
                 node = self.network.nodes[nid]
-                hold_cost = float(node.on_hand) * float(node.holding_cost)
-                # backlog penalty only on external (retailer); warehouses typically don't have external backorders
-                back_cost = float(node.backlog_external) * float(node.shortage_cost) if node.node_type == 'retailer' else 0.0
-                ord_cost  = ordering_cost_today[nid]
-                trans_cost = transport_cost_today[nid]
-                tot_cost = hold_cost + back_cost + ord_cost + trans_cost
-
                 parent_id = self.network.parent_of(nid)
+
                 if parent_id is None:
                     continue
-                policy: BasePolicy = node.policy
-                try:
-                    # New: try time-aware call
-                    q = policy.order_qty(
-                        on_hand=node.on_hand,
-                        backlog_external=node.backlog_external,
-                        backlog_children=node.total_backlog_children(),
-                        pipeline_in=node.total_pipeline_in() + node.placed_orders,  # NEW: include placed but not yet shipped
-                        t=t,                      # <— NEW
-                    )
-                except TypeError:
-                    # Backward-compatible fallback
-                    q = policy.order_qty(
-                        on_hand=node.on_hand,
-                        backlog_external=node.backlog_external,
-                        backlog_children=node.total_backlog_children(),
-                        pipeline_in=node.total_pipeline_in() + node.placed_orders,  # NEW: include placed but not yet shipped
-                    )
-                if q > 0:
-                    orders_waiting.setdefault(parent_id, []).append((t + self.order_processing_delay, nid, q))
-                    ordering_cost_today[nid] += float(node.order_cost_fixed) + float(node.order_cost_per_unit) * float(q)
-                orders_today[nid] = q
 
-                node.placed_orders += q  # NEW tracking
+                for sku in node.skus:
 
-                self.orders_log.append({
-                    "time": t,
-                    "node_id": nid,
-                    "order_qty": q,
-                    "policy_type": type(policy).__name__,
-                })
+                    policy = node.policies[sku]
 
-                if mode == "detailed":
-                    self._record(t, nid, received=0, orders_to_parent=q, phase="after_ordering")
-                    
-            # 5) EOD snapshot (after demand served, before next arrivals)
+                    try:
+                        q = policy.order_qty(
+                            on_hand=node.on_hand[sku],
+                            backlog_external=node.backlog_external[sku],
+                            backlog_children=node.total_backlog_children(sku),
+                            pipeline_in=node.total_pipeline_in(sku)
+                                + node.placed_orders[sku],
+                            t=t
+                        )
+                    except TypeError:
+                        q = policy.order_qty(
+                            on_hand=node.on_hand[sku],
+                            backlog_external=node.backlog_external[sku],
+                            backlog_children=node.total_backlog_children(sku),
+                            pipeline_in=node.total_pipeline_in(sku)
+                                + node.placed_orders[sku]
+                        )
+
+                    if q > 0:
+                        orders_waiting.setdefault(parent_id, []).append(
+                            (t + self.order_processing_delay, nid, sku, q)
+                        )
+
+                        ordering_cost_today[nid][sku] += (
+                            node.order_cost_fixed
+                            + node.order_cost_per_unit * q
+                        )
+
+                        node.placed_orders[sku] += q
+
+                    orders_today[nid][sku] = q
+
+            # =====================================================
+            # 5) EOD SNAPSHOT
+            # =====================================================
+
             for nid in topo:
                 node = self.network.nodes[nid]
-                hold_cost = float(node.on_hand) * float(node.holding_cost)
-                back_cost = float(node.backlog_external) * float(node.shortage_cost) if node.node_type == 'retailer' else 0.0
-                ord_cost = ordering_cost_today[nid]
-                trans_cost = transport_cost_today[nid]
-                tot_cost = hold_cost + back_cost + ord_cost + trans_cost
 
-                self._record(
-                    t, nid,
-                    received=received_today[nid],
-                    orders_to_parent=orders_today[nid],
-                    phase="EOD",
-                    demand=demand_today[nid],
-                    fulfilled_external=fulfilled_today[nid],
-                    holding_cost=hold_cost,
-                    backlog_cost=back_cost,
-                    ordering_cost=ord_cost,
-                    transport_cost=trans_cost,
-                    total_cost=tot_cost
-                )
+                for sku in node.skus:
 
-                self.inventory_log.append({
-                    "time": t,
-                    "node_id": nid,
-                    "on_hand": node.on_hand,
-                    "backlog_external": node.backlog_external,
-                    "backlog_children": node.total_backlog_children(),
-                    "pipeline_in": node.total_pipeline_in(),
-                    "placed_orders": node.placed_orders,
-                })
+                    hold_cost = node.on_hand[sku] * node.holding_cost
+                    back_cost = (
+                        node.backlog_external[sku] * node.shortage_cost
+                        if node.node_type == "retailer"
+                        else 0.0
+                    )
+
+                    ord_cost = ordering_cost_today[nid][sku]
+                    trans_cost = transport_cost_today[nid][sku]
+
+                    tot_cost = hold_cost + back_cost + ord_cost + trans_cost
+
+                    self.metrics.append(
+                        MetricsRow(
+                            t=t,
+                            node_id=nid,
+                            sku=sku,
+                            on_hand=node.on_hand[sku],
+                            backlog_external=node.backlog_external[sku],
+                            backlog_children=node.total_backlog_children(sku),
+                            pipeline_in=node.total_pipeline_in(sku),
+                            orders_to_parent=orders_today[nid][sku],
+                            received=received_today[nid][sku],
+                            demand=demand_today[nid][sku],
+                            fulfilled_external=fulfilled_today[nid][sku],
+                            holding_cost=hold_cost,
+                            backlog_cost=back_cost,
+                            ordering_cost=ord_cost,
+                            transport_cost=trans_cost,
+                            total_cost=tot_cost
+                        )
+                    )
+
+                    # -----------------------------
+                    # INVENTORY LOG
+                    # -----------------------------
+                    self.inventory_log.append({
+                        "t": t,
+                        "node_id": nid,
+                        "sku": sku,
+                        "on_hand": node.on_hand[sku],
+                        "backlog_external": node.backlog_external[sku],
+                        "backlog_children": node.total_backlog_children(sku),
+                        "pipeline_in": node.total_pipeline_in(sku)
+                    })
+
+                    # -----------------------------
+                    # ORDERS LOG
+                    # -----------------------------
+                    self.orders_log.append({
+                        "t": t,
+                        "node_id": nid,
+                        "sku": sku,
+                        "orders_to_parent": orders_today[nid][sku]
+                    })
 
 
-            # Safety
+            # =====================================================
+            # SAFETY
+            # =====================================================
+
             for nid, node in self.network.nodes.items():
                 if not node.infinite_supply:
-                    assert node.on_hand >= 0, f"Negative stock at {nid} t={t}"
+                    for sku in node.skus:
+                        assert node.on_hand[sku] >= 0, \
+                            f"Negative stock at {nid}, SKU {sku}, t={t}"
 
         return self.metrics
 
-    def _record(self, t: int, nid: str, received: int, orders_to_parent: int,
-            phase: str = "EOD", demand: int = 0, fulfilled_external: int = 0,
-            holding_cost: float = 0.0, backlog_cost: float = 0.0,
-            ordering_cost: float = 0.0, transport_cost: float = 0.0, total_cost: float = 0.0):
-        node = self.network.nodes[nid]
-        self.metrics.append(MetricsRow(
-            t=t, node_id=nid, on_hand=node.on_hand,
-            backlog_external=node.backlog_external,
-            backlog_children=node.total_backlog_children(),
-            pipeline_in=node.total_pipeline_in(),
-            orders_to_parent=orders_to_parent,
-            received=received, phase=phase,
-            demand=demand, fulfilled_external=fulfilled_external,
-            holding_cost=holding_cost, backlog_cost=backlog_cost,
-            ordering_cost=ordering_cost, transport_cost=transport_cost,
-            total_cost=total_cost
-        ))
-
+    # ============================================================
+    # TOPO SORT (UNCHANGED)
+    # ============================================================
 
     def _topological_order(self) -> List[str]:
-        # print("NODES:", self.network.nodes.keys())
-        # print("EDGES:", self.network.edges.keys())
 
         indeg = {nid: 0 for nid in self.network.nodes}
+
         for (p, c) in self.network.edges:
             indeg[c] += 1
+
         q = [nid for nid, d in indeg.items() if d == 0]
         out = []
+
         while q:
             u = q.pop(0)
             out.append(u)
@@ -264,6 +340,8 @@ class Simulator:
                 indeg[v] -= 1
                 if indeg[v] == 0:
                     q.append(v)
+
         if len(out) != len(self.network.nodes):
             raise ValueError("Graph not a DAG or disconnected.")
+
         return out

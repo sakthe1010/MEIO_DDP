@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 import numpy as np
 from datetime import datetime
+from collections import defaultdict
+from typing import Dict, Callable, List, Tuple
 
 # --- make project imports work even when launched via VS Code Run button ---
 ROOT = Path(__file__).resolve().parents[1]
@@ -161,41 +163,65 @@ def print_scenario_summary(cfg):
 # =========================
 
 def build_from_config(cfg_or_path):
+
     if isinstance(cfg_or_path, (str, os.PathLike)):
         with open(cfg_or_path, "r") as f:
             cfg = json.load(f)
     elif isinstance(cfg_or_path, dict):
         cfg = cfg_or_path
     else:
-        raise TypeError("build_from_config expects a path or a dict")
+        raise TypeError("build_from_config expects a path or dict")
 
     top_seed = cfg.get("seed", None)
 
+    # ============================================================
+    # GLOBAL SKU LIST
+    # ============================================================
+
+    skus = cfg.get("skus", [])
+    if not skus:
+        raise ValueError("Config must define global 'skus' list")
+
+    # ============================================================
+    # BUILD NODES
+    # ============================================================
+
     nodes = {}
+
     for nd in cfg["nodes"]:
-        pol = nd.get("policy", {})
-        ptype = pol.get("type", "base_stock")
-        if ptype == "base_stock":
-            policy = BaseStockPolicy(base_stock_level=pol["base_stock_level"])
-        elif ptype == "sS":
-            policy = SsPolicy(s=pol["s"], S=pol["S"])
-        elif ptype == "order_up_to":
-            from policies.order_up_to import OrderUpToPolicy
-            policy = OrderUpToPolicy(R=pol["R"], S=pol["S"], phase_offset=pol.get("phase_offset", 0))
-        elif ptype == "km_cycle":
-            from policies.km_cycle import KmCyclePolicy
-            policy = KmCyclePolicy(
-                k=pol["k"], m=pol["m"], S=pol["S"],
-                review_offsets=tuple(pol.get("review_offsets", (0,)))
-            )
-        else:
-            raise ValueError(f"Unknown policy type {ptype}")
+
+        # ---- Build policies per SKU ----
+        policies = {}
+
+        policy_block = nd.get("policy", {})
+
+        for sku in skus:
+
+            if sku not in policy_block:
+                raise ValueError(f"Node {nd['id']} missing policy for SKU {sku}")
+
+            pol = policy_block[sku]
+            ptype = pol["type"]
+
+            if ptype == "base_stock":
+                policy = BaseStockPolicy(base_stock_level=pol["base_stock_level"])
+
+            elif ptype == "sS":
+                policy = SsPolicy(s=pol["s"], S=pol["S"])
+
+            else:
+                raise ValueError(f"Unknown policy type {ptype}")
+
+            policies[sku] = policy
+
+        # ---- Node creation ----
 
         nodes[nd["id"]] = Node(
             node_id=nd["id"],
             node_type=nd["type"],
-            policy=policy,
-            initial_inventory=nd.get("initial_inventory", 0),
+            policies=policies,
+            skus=skus,
+            initial_inventory=nd.get("initial_inventory", {}),
             holding_cost=nd.get("holding_cost", 0.0),
             shortage_cost=nd.get("shortage_cost", 0.0),
             infinite_supply=nd.get("infinite_supply", False),
@@ -203,13 +229,17 @@ def build_from_config(cfg_or_path):
             order_cost_per_unit=nd.get("order_cost_per_unit", 0.0),
         )
 
+    # ============================================================
+    # BUILD NETWORK
+    # ============================================================
+
     net = Network()
-    # add nodes
+
     for node in nodes.values():
         net.add_node(node)
 
-    # add edges PROPERLY
     for e in cfg["edges"]:
+
         lt = e["lead_time"]
         lt_seed = lt.get("seed", top_seed)
         lt_rng = random.Random(lt_seed) if lt_seed is not None else random.Random()
@@ -220,15 +250,6 @@ def build_from_config(cfg_or_path):
             sampler = NormalIntLeadTime(lt["mean"], lt["std"], lt_rng).sample
         else:
             raise ValueError("Unknown lead time type")
-        
-        # if "capacity" not in e or float(e["capacity"]) <= 0:
-        #     raise ValueError(
-        #         f"Invalid or missing capacity for route {e.get('route_id')} "
-        #         f"({e['from']} -> {e['to']})"
-        #     )
-
-        # capacity = float(e["capacity"])
-
 
         net.add_edge(
             parent_id=e["from"],
@@ -242,25 +263,40 @@ def build_from_config(cfg_or_path):
             lead_time_sampler=sampler
         )
 
+    # ============================================================
+    # BUILD DEMAND (PER NODE, PER SKU)
+    # ============================================================
 
-    demand_by_node = {}
+    demand_by_node: Dict[str, Dict[str, callable]] = {}
+
     for d in cfg.get("demand", []):
-        node = d["node"]; g = d["generator"]
+
+        node = d["node"]
+        sku = d["sku"]
+        g = d["generator"]
+
         d_seed = g.get("seed", top_seed)
         d_rng = random.Random(d_seed) if d_seed is not None else random.Random()
 
         gtype = g["type"]
+
         if gtype == "deterministic":
-            demand_by_node[node] = DeterministicDemand(g["value"]).sample
+
+            gen = DeterministicDemand(g["value"]).sample
+
         elif gtype == "poisson":
-            demand_by_node[node] = PoissonDemand(g["lam"], d_rng).sample
+
+            gen = PoissonDemand(g["lam"], d_rng).sample
+
         elif gtype == "csv":
+
             date_col = g.get("date_col", "date")
             qty_col = g.get("qty_col", "quantity")
 
             if "path" in g:
                 path = (ROOT / g["path"]).resolve()
                 series = _read_csv_series(path, date_col, qty_col)
+
             elif "manifest" in g and "store_id" in g:
                 man_path = (ROOT / g["manifest"]).resolve()
                 with open(man_path, "r") as mf:
@@ -268,15 +304,24 @@ def build_from_config(cfg_or_path):
                 csv_rel = manifest["files"][str(g["store_id"])]
                 path = (man_path.parent / csv_rel).resolve()
                 series = _read_csv_series(path, date_col, qty_col)
+
             else:
-                raise ValueError("csv generator requires either 'path' or ('manifest' + 'store_id').")
+                raise ValueError("csv generator requires 'path' or ('manifest' + 'store_id')")
 
             start_index = int(g.get("start_index", 0))
-            demand_by_node[node] = CSVDrivenDemand(series, g.get("strategy", "wrap"), start_index).sample
+            strategy = g.get("strategy", "wrap")
+
+            gen = CSVDrivenDemand(series, strategy, start_index).sample
+
         else:
             raise ValueError(f"Unknown demand generator type {gtype}")
 
+
+        demand_by_node.setdefault(node, {})
+        demand_by_node[node][sku] = gen
+
     T = int(cfg["time_horizon"])
+
     return net, demand_by_node, T
 
 # =========================
@@ -328,7 +373,7 @@ def main():
 
     is_eod = df_sum["phase"] == "EOD"
     c = df_sum[is_eod].copy()
-    grp = c.groupby("node_id").agg(
+    grp = c.groupby(["node_id", "sku"]).agg(
         holding_cost=("holding_cost", "sum"),
         backlog_cost=("backlog_cost", "sum"),
         ordering_cost=("ordering_cost", "sum"),
@@ -336,14 +381,18 @@ def main():
         total_cost=("total_cost", "sum"),
     ).reset_index()
 
+
     overall = pd.DataFrame([{
-        "node_id": "_OVERALL_",
-        "holding_cost": grp["holding_cost"].sum(),
-        "backlog_cost": grp["backlog_cost"].sum(),
-        "ordering_cost": grp["ordering_cost"].sum(),
-        "transport_cost": grp["transport_cost"].sum(),
-        "total_cost": grp["total_cost"].sum(),
+    "node_id": "_OVERALL_",
+    "sku": "_ALL_",
+    "holding_cost": grp["holding_cost"].sum(),
+    "backlog_cost": grp["backlog_cost"].sum(),
+    "ordering_cost": grp["ordering_cost"].sum(),
+    "transport_cost": grp["transport_cost"].sum(),
+    "total_cost": grp["total_cost"].sum(),
     }])
+
+
 
     costs_df = pd.concat([grp, overall], ignore_index=True)
     costs_df.to_csv(run_dir / "costs_summary.csv", index=False)
@@ -353,18 +402,26 @@ def main():
     def _compute_kpis(df):
         is_eod = df["phase"] == "EOD"
         dfe = df[is_eod].copy()
-        grp = dfe.groupby("node_id").agg(
+
+        grp = dfe.groupby(["node_id", "sku"]).agg(
             demand_sum=("demand", "sum"),
             fulfilled_sum=("fulfilled_external", "sum"),
         ).reset_index()
-        grp["fill_rate"] = grp["fulfilled_sum"] / grp["demand_sum"]
+
+        grp["fill_rate"] = grp["fulfilled_sum"] / grp["demand_sum"].replace(0, 1)
+
         overall = pd.DataFrame([{
             "node_id": "_OVERALL_",
+            "sku": "_ALL_",
             "demand_sum": grp["demand_sum"].sum(),
             "fulfilled_sum": grp["fulfilled_sum"].sum(),
-            "fill_rate": grp["fulfilled_sum"].sum() / grp["demand_sum"].sum()
+            "fill_rate": grp["fulfilled_sum"].sum() /
+                        grp["demand_sum"].sum()
+                        if grp["demand_sum"].sum() > 0 else 1.0
         }])
+
         return pd.concat([grp, overall], ignore_index=True)
+
 
     kpi_df = _compute_kpis(df_sum)
     kpi_df.to_csv(run_dir / "kpis_summary.csv", index=False)
