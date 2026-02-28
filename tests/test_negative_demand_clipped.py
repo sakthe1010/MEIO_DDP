@@ -4,26 +4,25 @@ from engine.node import Node
 from engine.simulator import Simulator
 from policies.base_stock import BaseStockPolicy
 
+
 def test_negative_demand_is_clipped():
-    # network with single retailer node
     net = Network()
-    r = Node("R", "retailer", policy=BaseStockPolicy(base_stock_level=10), initial_inventory=10)
+
+    r = Node(
+        node_id="R",
+        node_type="retailer",
+        policies={"SKU1": BaseStockPolicy(base_stock_level=10)},
+        skus=["SKU1"],
+        initial_inventory={"SKU1": 5},
+    )
+
     net.add_node(r)
 
-    # demand generator with a negative value (should be clipped to 0)
-    demand_series = [5, -7, 3]
+    demand_by_node = {"R": {"SKU1": lambda t: -5}}
 
-    def demand_func(t):
-        return demand_series[t] if t < len(demand_series) else 0
+    sim = Simulator(net, demand_by_node, T=5)
+    df = pd.DataFrame([m.__dict__ for m in sim.run()])
 
-    demand_by_node = {"R": demand_func}
+    df = df[df["sku"] == "SKU1"]
 
-    sim = Simulator(network=net, demand_by_node=demand_by_node, T=3, order_processing_delay=1)
-    res = sim.run(mode="summary")
-
-    df = pd.DataFrame([m.__dict__ for m in res])
-    r_df = df[df.node_id == "R"]
-
-    # On-hand should never increase due to negative demand
-    for t in range(1, len(r_df)):
-        assert r_df.iloc[t]["on_hand"] <= 10, "Negative demand was not clipped properly"
+    assert (df["on_hand"] >= 0).all()

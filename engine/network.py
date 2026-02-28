@@ -111,13 +111,32 @@ class Network:
 
         return sample
 
-    def lead_time_sampler_by_child(self, parent_id: str) -> Dict[str, Callable[[], int]]:
-        # For each child, return a single callable that mixes across routes
-        out: Dict[str, Callable[[], int]] = {}
-        for c in self.children(parent_id):
-            e_list = self.edges[(parent_id, c)]
-            out[c] = e_list[0].lead_time_sampler if len(e_list) == 1 else self._mixed_sampler(e_list)
-        return out
+    def lead_time_sampler_by_child(self, parent_id: str) -> Dict[str, Callable]:
+        result = {}
+        for child_id in self.children(parent_id):
+            key = (parent_id, child_id)
+            edge_list = self.edges.get(key, [])
+
+            if not edge_list:
+                continue
+
+            # Handle None shares — fall back to equal weighting
+            raw_weights = [
+                e.share if (e.share is not None and e.share > 0) else 1.0
+                for e in edge_list
+            ]
+            total = sum(raw_weights)
+            weights = [w / total for w in raw_weights]
+            samplers = [e.lead_time_sampler for e in edge_list]
+
+            def make_sampler(samps, wts):
+                def sampler():
+                    chosen = random.choices(samps, weights=wts, k=1)[0]
+                    return chosen()
+                return sampler
+
+            result[child_id] = make_sampler(samplers, weights)
+        return result
     
     def get_transport_options(self, parent_id: str, child_id: str) -> List[TransportOption]:
         """

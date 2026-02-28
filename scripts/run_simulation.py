@@ -19,6 +19,9 @@ from engine.network import Network, Edge
 from engine.simulator import Simulator
 from policies.base_stock import BaseStockPolicy
 from policies.ss_policy import SsPolicy
+from policies.order_up_to import OrderUpToPolicy
+from policies.km_cycle import KmCyclePolicy
+from policies.periodic_review import PeriodicReviewPolicy
 
 # demand/lead-time generators (inline)
 from dataclasses import dataclass
@@ -116,7 +119,18 @@ def _describe_demand(cfg):
 def _describe_policy(cfg):
     policies = set()
     for n in cfg["nodes"]:
-        policies.add(n.get("policy", {}).get("type", "unknown"))
+        pol_block = n.get("policy", {})
+        if not pol_block:
+            policies.add("unknown")
+            continue
+        # policy block is {sku: {type: ...}} — grab type from first SKU
+        first_sku_pol = next(iter(pol_block.values()))
+        if isinstance(first_sku_pol, dict):
+            policies.add(first_sku_pol.get("type", "unknown"))
+        else:
+            policies.add(pol_block.get("type", "unknown"))
+    if not policies:
+        return "No policies defined"
     if len(policies) == 1:
         return list(policies)[0]
     return "Multiple policy types"
@@ -178,9 +192,24 @@ def build_from_config(cfg_or_path):
     # GLOBAL SKU LIST
     # ============================================================
 
-    skus = cfg.get("skus", [])
-    if not skus:
-        raise ValueError("Config must define global 'skus' list")
+    if "skus" not in cfg:
+        # Auto-wrap single SKU configs for tests
+        cfg = dict(cfg)  # shallow copy
+        cfg["skus"] = ["SKU1"]
+
+        for nd in cfg["nodes"]:
+            if "initial_inventory" in nd and not isinstance(nd["initial_inventory"], dict):
+                nd["initial_inventory"] = {"SKU1": nd["initial_inventory"]}
+
+            if "policy" in nd and not isinstance(list(nd["policy"].values())[0], dict):
+                nd["policy"] = {"SKU1": nd["policy"]}
+
+        for d in cfg.get("demand", []):
+            if "sku" not in d:
+                d["sku"] = "SKU1"
+
+    skus = cfg["skus"]
+
 
     # ============================================================
     # BUILD NODES
@@ -204,13 +233,46 @@ def build_from_config(cfg_or_path):
             ptype = pol["type"]
 
             if ptype == "base_stock":
-                policy = BaseStockPolicy(base_stock_level=pol["base_stock_level"])
+                policy = BaseStockPolicy(
+                    base_stock_level=pol["base_stock_level"]
+                )
 
             elif ptype == "sS":
-                policy = SsPolicy(s=pol["s"], S=pol["S"])
+
+                policy = SsPolicy(
+                    s=pol["s"],
+                    S=pol["S"]
+                )
+
+            elif ptype == "order_up_to":
+
+                policy = OrderUpToPolicy(
+                    R=pol["R"],
+                    S=pol["S"],
+                    phase_offset=pol.get("phase_offset", 0),
+                    k=pol.get("k"),
+                    m=pol.get("m")
+                )
+
+            elif ptype == "km_cycle":
+
+                policy = KmCyclePolicy(
+                    k=pol["k"],
+                    m=pol["m"],
+                    S=pol["S"],
+                    review_offsets=tuple(pol.get("review_offsets", (0,)))
+                )
+
+            elif ptype == "periodic_review":
+
+                policy = PeriodicReviewPolicy(
+                    review_period=pol["review_period"],
+                    order_up_to=pol["order_up_to"]
+                )
 
             else:
                 raise ValueError(f"Unknown policy type {ptype}")
+
 
             policies[sku] = policy
 
@@ -260,7 +322,8 @@ def build_from_config(cfg_or_path):
             cost_full=e.get("cost_full", 0.0),
             cost_half=e.get("cost_half", 0.0),
             cost_quarter=e.get("cost_quarter", 0.0),
-            lead_time_sampler=sampler
+            lead_time_sampler=sampler,
+            share=e.get("share", None)
         )
 
     # ============================================================

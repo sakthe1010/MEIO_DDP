@@ -209,13 +209,23 @@ class Simulator:
 
                     policy = node.policies[sku]
 
+                    # qty the parent is holding for us but hasn't shipped yet
+                    # (blocked by transport consolidation)
+                    parent_node = self.network.nodes[parent_id]
+                    parent_backlog_for_me = parent_node.backlog_children.get(
+                        (nid, sku), 0
+                    )
+
+                    effective_pipeline = (
+                        node.total_pipeline_in(sku) + parent_backlog_for_me
+                    )
+
                     try:
                         q = policy.order_qty(
                             on_hand=node.on_hand[sku],
                             backlog_external=node.backlog_external[sku],
                             backlog_children=node.total_backlog_children(sku),
-                            pipeline_in=node.total_pipeline_in(sku)
-                                + node.placed_orders[sku],
+                            pipeline_in=effective_pipeline,
                             t=t
                         )
                     except TypeError:
@@ -223,9 +233,9 @@ class Simulator:
                             on_hand=node.on_hand[sku],
                             backlog_external=node.backlog_external[sku],
                             backlog_children=node.total_backlog_children(sku),
-                            pipeline_in=node.total_pipeline_in(sku)
-                                + node.placed_orders[sku]
+                            pipeline_in=effective_pipeline
                         )
+
 
                     if q > 0:
                         orders_waiting.setdefault(parent_id, []).append(

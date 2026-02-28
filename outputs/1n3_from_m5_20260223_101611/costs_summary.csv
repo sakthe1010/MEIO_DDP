@@ -1,0 +1,8 @@
+node_id,sku,holding_cost,backlog_cost,ordering_cost,transport_cost,total_cost
+R1,SKU1,0.0,0.0,0.0,0.0,0.0
+R2,SKU1,0.0,0.0,0.0,0.0,0.0
+R3,SKU1,0.0,0.0,0.0,0.0,0.0
+Supplier,SKU1,0.0,0.0,0.0,0.0,0.0
+W1,SKU1,0.0,0.0,0.0,0.0,0.0
+W2,SKU1,0.0,0.0,0.0,0.0,0.0
+_OVERALL_,_ALL_,0.0,0.0,0.0,0.0,0.0

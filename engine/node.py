@@ -19,8 +19,9 @@ class Node:
         self,
         node_id: str,
         node_type: str,  # 'supplier'|'warehouse'|'retailer'
-        policies: Dict[str, object],   # policy per SKU
-        skus: List[str],
+        policies: Dict[str, object] = None,   # policy per SKU
+        skus: List[str] = None,
+        policy = None,  # legacy single policy (deprecated)
         initial_inventory: Optional[Dict[str, int]] = None,
         holding_cost: float = 0.0,
         shortage_cost: float = 0.0,
@@ -42,6 +43,17 @@ class Node:
         self.infinite_supply = infinite_supply
         self.order_cost_fixed = order_cost_fixed
         self.order_cost_per_unit = order_cost_per_unit
+
+        # Backward compatibility for single-policy tests
+        # Backward compatibility for single-policy tests
+        if policy is not None:
+            self.skus = ["SKU1"]
+            self.policies = {"SKU1": policy}
+            skus = self.skus        # keep local var in sync for lines below
+            policies = self.policies
+            if isinstance(initial_inventory, int):
+                initial_inventory = {"SKU1": initial_inventory}
+
 
         # -----------------------------
         # Initial inventory

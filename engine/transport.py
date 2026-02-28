@@ -41,13 +41,10 @@ class TransportPlanner:
         requested_volume: float,
         options: List[TransportOption],
     ) -> List[PlannedShipment]:
-        
-        # return []
 
         if requested_volume <= 0:
             return []
 
-        # deterministic: lowest mode first
         options = sorted(options, key=lambda x: x.mode)
 
         for opt in options:
@@ -55,7 +52,6 @@ class TransportPlanner:
             if shipments:
                 return shipments
 
-        # no feasible transport -> delay shipment
         return []
 
     def _plan_single_option(
@@ -68,15 +64,13 @@ class TransportPlanner:
         if C <= 0:
             raise RuntimeError(f"Invalid transport capacity: {C} for route {opt.route_id}")
 
-        shipments: List[PlannedShipment] = []
-
-        # minimum feasible shipment
-        if requested_volume < self.MIN_UTIL * C:
+        if requested_volume <= 0:
             return []
 
+        shipments: List[PlannedShipment] = []
         remaining = requested_volume
 
-        # full vehicles
+        # Full vehicles first
         while remaining >= C:
             shipments.append(
                 PlannedShipment(
@@ -89,21 +83,21 @@ class TransportPlanner:
             )
             remaining -= C
 
-        # partial vehicle
+        # Partial vehicle — always ship, charge appropriate tier
         if remaining > 0:
             util = remaining / C
 
-            if util >= 1.0:
-                cost = opt.cost_full
-                util_bucket = 1.0
-            elif util >= 0.5:
+            if util >= 0.5:
                 cost = opt.cost_half
                 util_bucket = 0.5
             elif util >= 0.25:
                 cost = opt.cost_quarter
                 util_bucket = 0.25
             else:
-                return shipments  # consolidate remainder
+                # Below quarter-load: charge quarter rate (minimum billing unit)
+                # but ALWAYS ship — carrier charges minimum, doesn't refuse goods
+                cost = opt.cost_quarter
+                util_bucket = 0.25
 
             shipments.append(
                 PlannedShipment(
@@ -116,3 +110,4 @@ class TransportPlanner:
             )
 
         return shipments
+

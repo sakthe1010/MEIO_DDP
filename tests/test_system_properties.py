@@ -25,11 +25,15 @@ from tests.conftest import df_from_cfg
 def test_conservation_of_flow(basic_serial_config):
     cfg = basic_serial_config
     df = df_from_cfg(cfg)
+    df = df[df["sku"] == "SKU1"]
+
 
     # Initial physical inventory in system (exclude Supplier)
     init_non_supplier_inv = sum(
-        nd["initial_inventory"] for nd in cfg["nodes"] if nd["type"] != "supplier"
+    nd["initial_inventory"]["SKU1"]
+    for nd in cfg["nodes"] if nd["type"] != "supplier"
     )
+
 
     # Find direct children of Supplier (single-sourcing)
     net, _, _ = build_from_config(cfg)
