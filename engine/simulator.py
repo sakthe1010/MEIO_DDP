@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 from engine.network import Network
 from engine.node import Node
-from engine.transport import TransportPlanner
+from engine.transport import TransportPlanner, VehicleLoad
 
 
 # ============================================================
@@ -36,11 +36,13 @@ class Simulator:
     demand_by_node: Dict[str, Dict[str, callable]]  # node -> sku -> demand_fn
     T: int
     order_processing_delay: int = 0
+    volume_per_unit: Dict[str, float] = field(default_factory=dict)
 
     metrics: List[MetricsRow] = field(default_factory=list)
     inventory_log: List[Dict] = field(default_factory=list)
     orders_log: List[Dict] = field(default_factory=list)
     shipments_log: List[Dict] = field(default_factory=list)
+    planner: TransportPlanner = field(default_factory=TransportPlanner)
 
     # ============================================================
     # MAIN RUN
@@ -49,7 +51,6 @@ class Simulator:
     def run(self, mode: str = "summary") -> List[MetricsRow]:
 
         topo = self._topological_order()
-        planner = TransportPlanner()
 
         # parent_id -> list of (process_time, child_id, sku, qty)
         orders_waiting: Dict[str, List[Tuple[int, str, str, int]]] = {}
@@ -166,33 +167,29 @@ class Simulator:
                         child_node.placed_orders[sku] - qty
                     )
 
-                def _transport_checker(child_id, sku, proposed_qty):
-                    options = self.network.get_transport_options(parent_id, child_id)
-                    planned = planner.plan(
-                        requested_volume=proposed_qty,
-                        options=options
-                    )
-                    return sum(s.qty for s in planned)
 
                 shipped = parent.process_child_orders(
                     t,
                     child_nodes,
                     lt_map,
-                    on_ship=_on_ship,
-                    transport_constraint_fn=_transport_checker
+                    on_ship=_on_ship
                 )
 
                 # Charge transport cost
+                shipped_by_child: Dict[str, Dict[str, float]] = {}
                 for (child, sku), ship_qty in shipped.items():
+                    shipped_by_child.setdefault(child, {})[sku] = float(ship_qty)
 
+                for child, sku_qtys in shipped_by_child.items():
+                    sku_volumes = {
+                        sku: qty * self.volume_per_unit.get(sku, 1.0)
+                        for sku, qty in sku_qtys.items()
+                    }
                     options = self.network.get_transport_options(parent_id, child)
-                    planned = planner.plan(
-                        requested_volume=ship_qty,
-                        options=options
-                    )
-
-                    for s in planned:
-                        transport_cost_today[parent_id][sku] += s.cost
+                    loads = self.planner.plan(quantities=sku_volumes, options=options)
+                    for load in loads:
+                        for sku, sku_cost in load.cost_by_sku.items():
+                            transport_cost_today[parent_id][sku] += sku_cost
 
             # =====================================================
             # 4) PLACE UPSTREAM ORDERS (PER SKU)
@@ -260,9 +257,9 @@ class Simulator:
 
                 for sku in node.skus:
 
-                    hold_cost = node.on_hand[sku] * node.holding_cost
+                    hold_cost = node.on_hand[sku] * node.holding_cost[sku]
                     back_cost = (
-                        node.backlog_external[sku] * node.shortage_cost
+                        node.backlog_external[sku] * node.shortage_cost[sku]
                         if node.node_type == "retailer"
                         else 0.0
                     )

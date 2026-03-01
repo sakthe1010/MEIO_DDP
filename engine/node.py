@@ -23,8 +23,8 @@ class Node:
         skus: List[str] = None,
         policy = None,  # legacy single policy (deprecated)
         initial_inventory: Optional[Dict[str, int]] = None,
-        holding_cost: float = 0.0,
-        shortage_cost: float = 0.0,
+        holding_cost: object = 0.0,   # accepts float OR Dict[str, float]
+        shortage_cost: object = 0.0,
         infinite_supply: bool = False,
         order_cost_fixed: float = 0.0,
         order_cost_per_unit: float = 0.0,
@@ -53,6 +53,20 @@ class Node:
             policies = self.policies
             if isinstance(initial_inventory, int):
                 initial_inventory = {"SKU1": initial_inventory}
+
+        # holding_cost
+        if isinstance(holding_cost, dict):
+            self.holding_cost: Dict[str, float] = {sku: float(holding_cost.get(sku, 0.0)) for sku in skus}
+        else:
+            self.holding_cost: Dict[str, float] = {sku: float(holding_cost) for sku in skus}
+
+        # shortage_cost
+        if isinstance(shortage_cost, dict):
+            self.shortage_cost: Dict[str, float] = {sku: float(shortage_cost.get(sku, 0.0)) for sku in skus}
+        else:
+            self.shortage_cost: Dict[str, float] = {sku: float(shortage_cost) for sku in skus}
+
+        
 
 
         # -----------------------------
@@ -218,8 +232,6 @@ class Node:
             # ----------------------------------------------------
             # Transport constraint (still per SKU for now)
             # ----------------------------------------------------
-            if transport_constraint_fn and ship > 0:
-                ship = transport_constraint_fn(child, sku, ship)
 
             # DEBUG (keep available if needed)
             # print(f"[DEBUG] Node {self.node_id} → {child} SKU {sku}: need={need}, ship={ship}")

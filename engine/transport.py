@@ -1,113 +1,270 @@
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Protocol, runtime_checkable
 
+
+# ============================================================
+# Core data structures
+# ============================================================
 
 @dataclass
 class TransportOption:
     route_id: str
     mode: int
-    capacity: float          # volume capacity
+    capacity: float                      # volume capacity (m³ or generic units)
     cost_full: float
     cost_half: float
     cost_quarter: float
     lead_time: int
+    weight_capacity: Optional[float] = None   # kg cap; None = no weight constraint
 
 
 @dataclass
-class PlannedShipment:
-    qty: float
+class VehicleLoad:
+    """One dispatched vehicle carrying multiple SKUs."""
     mode: int
-    cost: float
     lead_time: int
-    utilization: float
+    total_cost: float
+    utilization: float                        # 0.0 – 1.0, volume-based
+    quantities: Dict[str, float]              # sku -> qty shipped on this vehicle
+    cost_by_sku: Dict[str, float]             # sku -> allocated cost share
 
+
+# ============================================================
+# Pluggable interfaces (Protocols)
+# ============================================================
+
+@runtime_checkable
+class LoadPlanner(Protocol):
+    """
+    Given a bundle of SKU quantities and one vehicle option,
+    return a list of VehicleLoads that serve as much of the
+    bundle as possible.
+
+    Users can implement this to add custom packing logic
+    (e.g. hazmat segregation, temperature zones, axle limits).
+    """
+    def plan_loads(
+        self,
+        quantities: Dict[str, float],       # sku -> total volume needed
+        option: TransportOption,
+    ) -> List[VehicleLoad]: ...
+
+
+@runtime_checkable
+class ModeSelector(Protocol):
+    """
+    Given multiple transport options for a lane, pick which
+    one(s) to use. Default: cheapest feasible mode first.
+
+    Users can override to implement: split shipments across
+    modes, urgency-based air vs. truck decisions, etc.
+    """
+    def select(
+        self,
+        quantities: Dict[str, float],
+        options: List[TransportOption],
+    ) -> List[TransportOption]: ...          # ordered list of options to try
+
+
+@runtime_checkable
+class CostAllocator(Protocol):
+    """
+    Given a vehicle's total cost and what's on it,
+    split cost back to each SKU.
+
+    Default: proportional to volume consumed.
+    Users can override: weight-proportional, equal-split, etc.
+    """
+    def allocate(
+        self,
+        total_cost: float,
+        quantities: Dict[str, float],       # sku -> qty on this vehicle
+        option: TransportOption,
+    ) -> Dict[str, float]: ...              # sku -> cost share
+
+
+# ============================================================
+# Default implementations
+# ============================================================
+
+class GreedyLoadPlanner:
+    """
+    Default load planner.
+    - Packs SKUs proportionally to their volume share.
+    - Full vehicles first, then partial with tiered billing.
+    - Always ships (carrier charges minimum quarter-load).
+    """
+
+    def plan_loads(
+        self,
+        quantities: Dict[str, float],
+        option: TransportOption,
+    ) -> List[VehicleLoad]:
+
+        C = option.capacity
+        if C <= 0:
+            raise RuntimeError(
+                f"Invalid capacity {C} for route {option.route_id}"
+            )
+
+        total_volume = sum(quantities.values())
+        if total_volume <= 0:
+            return []
+
+        # SKU volume proportions — fixed for all vehicles on this lane
+        proportions = {
+            sku: vol / total_volume
+            for sku, vol in quantities.items()
+        }
+
+        loads: List[VehicleLoad] = []
+        remaining_vol = total_volume
+
+        # --- Full vehicles ---
+        while remaining_vol >= C:
+            qty_this = {
+                sku: proportions[sku] * C
+                for sku in quantities
+            }
+            loads.append(
+                VehicleLoad(
+                    mode=option.mode,
+                    lead_time=option.lead_time,
+                    total_cost=option.cost_full,
+                    utilization=1.0,
+                    quantities=qty_this,
+                    cost_by_sku={},          # filled by allocator
+                )
+            )
+            remaining_vol -= C
+
+        # --- Partial vehicle ---
+        if remaining_vol > 0:
+            util = remaining_vol / C
+
+            if util >= 0.5:
+                cost = option.cost_half
+                util_bucket = 0.5
+            else:
+                # quarter-load minimum billing
+                cost = option.cost_quarter
+                util_bucket = 0.25
+
+            qty_this = {
+                sku: proportions[sku] * remaining_vol
+                for sku in quantities
+            }
+            loads.append(
+                VehicleLoad(
+                    mode=option.mode,
+                    lead_time=option.lead_time,
+                    total_cost=cost,
+                    utilization=util_bucket,
+                    quantities=qty_this,
+                    cost_by_sku={},
+                )
+            )
+
+        return loads
+
+
+class CheapestModeSelector:
+    """
+    Default mode selector.
+    Tries modes in ascending order (mode=1 preferred).
+    First mode that can carry any volume is used exclusively.
+    """
+
+    def select(
+        self,
+        quantities: Dict[str, float],
+        options: List[TransportOption],
+    ) -> List[TransportOption]:
+        return sorted(options, key=lambda o: o.mode)
+
+
+class VolumeProportionalAllocator:
+    """
+    Default cost allocator.
+    Each SKU pays proportional to the volume it occupies.
+    """
+
+    def allocate(
+        self,
+        total_cost: float,
+        quantities: Dict[str, float],
+        option: TransportOption,
+    ) -> Dict[str, float]:
+
+        total_vol = sum(quantities.values())
+        if total_vol <= 0:
+            n = len(quantities)
+            return {sku: total_cost / n for sku in quantities}
+
+        return {
+            sku: total_cost * (vol / total_vol)
+            for sku, vol in quantities.items()
+        }
+
+
+# ============================================================
+# TransportPlanner — orchestrates the three components
+# ============================================================
 
 class TransportPlanner:
     """
-    Phase-1 transport planner:
-    - deterministic
-    - single SKU (volume = units)
-    - minimum quarter-load
-    - mode priority (lower mode preferred)
+    Orchestrates load planning, mode selection, and cost allocation.
+
+    All three components are pluggable. Pass your own implementations
+    to customize behaviour for your industry / network.
+
+    Usage (default):
+        planner = TransportPlanner()
+        loads = planner.plan({"SKU_A": 120.0, "SKU_B": 60.0}, options)
+
+    Usage (custom allocator):
+        planner = TransportPlanner(allocator=WeightProportionalAllocator())
+        loads = planner.plan(quantities, options)
     """
 
-    MIN_UTIL = 0.25
-
-    def __init__(self, policy: str = "MIN_QUARTER_CONSOLIDATE"):
-        self.policy = policy
+    def __init__(
+        self,
+        load_planner: Optional[LoadPlanner] = None,
+        mode_selector: Optional[ModeSelector] = None,
+        allocator: Optional[CostAllocator] = None,
+    ):
+        self.load_planner = load_planner or GreedyLoadPlanner()
+        self.mode_selector = mode_selector or CheapestModeSelector()
+        self.allocator = allocator or VolumeProportionalAllocator()
 
     def plan(
         self,
-        requested_volume: float,
+        quantities: Dict[str, float],      # sku -> volume needed
         options: List[TransportOption],
-    ) -> List[PlannedShipment]:
+    ) -> List[VehicleLoad]:
+        """
+        Plan all vehicles needed to move `quantities` across this lane.
+        Returns a list of VehicleLoad, each with cost_by_sku filled in.
+        """
 
-        if requested_volume <= 0:
+        if not quantities or all(v <= 0 for v in quantities.values()):
             return []
 
-        options = sorted(options, key=lambda x: x.mode)
+        if not options:
+            return []
 
-        for opt in options:
-            shipments = self._plan_single_option(requested_volume, opt)
-            if shipments:
-                return shipments
+        ordered_options = self.mode_selector.select(quantities, options)
+
+        for option in ordered_options:
+            loads = self.load_planner.plan_loads(quantities, option)
+            if loads:
+                # Fill cost_by_sku for every load
+                for load in loads:
+                    load.cost_by_sku = self.allocator.allocate(
+                        load.total_cost,
+                        load.quantities,
+                        option,
+                    )
+                return loads
 
         return []
-
-    def _plan_single_option(
-        self,
-        requested_volume: float,
-        opt: TransportOption,
-    ) -> List[PlannedShipment]:
-
-        C = opt.capacity
-        if C <= 0:
-            raise RuntimeError(f"Invalid transport capacity: {C} for route {opt.route_id}")
-
-        if requested_volume <= 0:
-            return []
-
-        shipments: List[PlannedShipment] = []
-        remaining = requested_volume
-
-        # Full vehicles first
-        while remaining >= C:
-            shipments.append(
-                PlannedShipment(
-                    qty=C,
-                    mode=opt.mode,
-                    cost=opt.cost_full,
-                    lead_time=opt.lead_time,
-                    utilization=1.0,
-                )
-            )
-            remaining -= C
-
-        # Partial vehicle — always ship, charge appropriate tier
-        if remaining > 0:
-            util = remaining / C
-
-            if util >= 0.5:
-                cost = opt.cost_half
-                util_bucket = 0.5
-            elif util >= 0.25:
-                cost = opt.cost_quarter
-                util_bucket = 0.25
-            else:
-                # Below quarter-load: charge quarter rate (minimum billing unit)
-                # but ALWAYS ship — carrier charges minimum, doesn't refuse goods
-                cost = opt.cost_quarter
-                util_bucket = 0.25
-
-            shipments.append(
-                PlannedShipment(
-                    qty=remaining,
-                    mode=opt.mode,
-                    cost=cost,
-                    lead_time=opt.lead_time,
-                    utilization=util_bucket,
-                )
-            )
-
-        return shipments
-

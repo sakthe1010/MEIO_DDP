@@ -209,6 +209,11 @@ def build_from_config(cfg_or_path):
                 d["sku"] = "SKU1"
 
     skus = cfg["skus"]
+    sku_props = cfg.get("sku_properties", {})
+    volume_per_unit = {
+        sku: sku_props.get(sku, {}).get("volume_per_unit", 1.0)
+        for sku in skus
+    }
 
 
     # ============================================================
@@ -402,17 +407,26 @@ def main():
     print_header()
 
     net, demand_by_node, T = build_from_config(args.config)
+    # Read config again to get sku_properties (already loaded above as cfg)
     with open(args.config) as f:
         cfg = json.load(f)
 
     print_scenario_summary(cfg)
 
+    # This line already exists in your main() — just add volume_per_unit extraction here:
+    sku_props = cfg.get("sku_properties", {})
+    skus = cfg.get("skus", ["SKU1"])
+    volume_per_unit = {
+        sku: float(sku_props.get(sku, {}).get("volume_per_unit", 1.0))
+        for sku in skus
+    }
+    
     run_name = Path(args.config).stem
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(args.outdir) / f"{run_name}_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    sim_sum = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1)
+    sim_sum = Simulator(network=net, demand_by_node=demand_by_node, T=T, order_processing_delay=1, volume_per_unit=volume_per_unit)
     metrics_sum = sim_sum.run(mode="summary")
     pd.DataFrame(sim_sum.inventory_log).to_csv(run_dir / "inventory_log.csv", index=False)
     pd.DataFrame(sim_sum.orders_log).to_csv(run_dir / "orders_log.csv", index=False)
