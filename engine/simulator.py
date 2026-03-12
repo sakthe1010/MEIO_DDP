@@ -240,8 +240,8 @@ class Simulator:
                         )
 
                         ordering_cost_today[nid][sku] += (
-                            node.order_cost_fixed
-                            + node.order_cost_per_unit * q
+                            node.order_cost_fixed[sku]
+                            + node.order_cost_per_unit[sku] * q
                         )
 
                         node.placed_orders[sku] += q

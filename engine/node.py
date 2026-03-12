@@ -26,8 +26,8 @@ class Node:
         holding_cost: object = 0.0,   # accepts float OR Dict[str, float]
         shortage_cost: object = 0.0,
         infinite_supply: bool = False,
-        order_cost_fixed: float = 0.0,
-        order_cost_per_unit: float = 0.0,
+        order_cost_fixed: object = 0.0,
+        order_cost_per_unit: object = 0.0,
     ):
 
         # -----------------------------
@@ -41,10 +41,7 @@ class Node:
         self.holding_cost = holding_cost
         self.shortage_cost = shortage_cost
         self.infinite_supply = infinite_supply
-        self.order_cost_fixed = order_cost_fixed
-        self.order_cost_per_unit = order_cost_per_unit
 
-        # Backward compatibility for single-policy tests
         # Backward compatibility for single-policy tests
         if policy is not None:
             self.skus = ["SKU1"]
@@ -65,6 +62,18 @@ class Node:
             self.shortage_cost: Dict[str, float] = {sku: float(shortage_cost.get(sku, 0.0)) for sku in skus}
         else:
             self.shortage_cost: Dict[str, float] = {sku: float(shortage_cost) for sku in skus}
+
+        # order_cost_fixed
+        if isinstance(order_cost_fixed, dict):
+            self.order_cost_fixed: Dict[str, float] = {sku: float(order_cost_fixed.get(sku, 0.0)) for sku in skus}
+        else:
+            self.order_cost_fixed: Dict[str, float] = {sku: float(order_cost_fixed) for sku in skus}
+
+        # order_cost_per_unit
+        if isinstance(order_cost_per_unit, dict):
+            self.order_cost_per_unit: Dict[str, float] = {sku: float(order_cost_per_unit.get(sku, 0.0)) for sku in skus}
+        else:
+            self.order_cost_per_unit: Dict[str, float] = {sku: float(order_cost_per_unit) for sku in skus}
 
         
 
@@ -188,7 +197,6 @@ class Node:
         on_ship: Optional[
             Callable[[str, str, str, int, int, int], None]
         ] = None,
-        transport_constraint_fn=None
     ) -> Dict[Tuple[str, str], int]:
 
         """
@@ -228,10 +236,6 @@ class Node:
                 ship = need
             else:
                 ship = min(self.on_hand[sku], need)
-
-            # ----------------------------------------------------
-            # Transport constraint (still per SKU for now)
-            # ----------------------------------------------------
 
             # DEBUG (keep available if needed)
             # print(f"[DEBUG] Node {self.node_id} → {child} SKU {sku}: need={need}, ship={ship}")

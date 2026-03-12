@@ -139,7 +139,7 @@ class GreedyLoadPlanner:
             remaining_vol -= C
 
         # --- Partial vehicle ---
-        if remaining_vol > 0:
+        if remaining_vol > 1e-9:
             util = remaining_vol / C
 
             if util >= 0.5:
