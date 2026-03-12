@@ -1,0 +1,585 @@
+{
+  "seed": 42,
+  "time_horizon": 1913,
+  "skus": [
+    "SKU_A",
+    "SKU_B",
+    "SKU_C",
+    "SKU_D",
+    "SKU_E"
+  ],
+  "sku_properties": {
+    "SKU_A": {
+      "item_id": "FOODS_3_586",
+      "volume_per_unit": 0.002,
+      "weight_per_unit": 0.8
+    },
+    "SKU_B": {
+      "item_id": "FOODS_3_714",
+      "volume_per_unit": 0.008,
+      "weight_per_unit": 0.5
+    },
+    "SKU_C": {
+      "item_id": "FOODS_3_252",
+      "volume_per_unit": 0.003,
+      "weight_per_unit": 1.2
+    },
+    "SKU_D": {
+      "item_id": "FOODS_3_555",
+      "volume_per_unit": 0.005,
+      "weight_per_unit": 0.7
+    },
+    "SKU_E": {
+      "item_id": "FOODS_3_694",
+      "volume_per_unit": 0.006,
+      "weight_per_unit": 0.9
+    }
+  },
+  "nodes": [
+    {
+      "id": "Supplier",
+      "type": "supplier",
+      "infinite_supply": true,
+      "policy": {
+        "SKU_A": {
+          "type": "base_stock",
+          "base_stock_level": 0
+        },
+        "SKU_B": {
+          "type": "base_stock",
+          "base_stock_level": 0
+        },
+        "SKU_C": {
+          "type": "base_stock",
+          "base_stock_level": 0
+        },
+        "SKU_D": {
+          "type": "base_stock",
+          "base_stock_level": 0
+        },
+        "SKU_E": {
+          "type": "base_stock",
+          "base_stock_level": 0
+        }
+      },
+      "holding_cost": 0.0,
+      "shortage_cost": 0.0,
+      "order_cost_fixed": 0.0,
+      "order_cost_per_unit": 0.0
+    },
+    {
+      "id": "W1",
+      "type": "warehouse",
+      "initial_inventory": {
+        "SKU_A": 1736,
+        "SKU_B": 942,
+        "SKU_C": 1093,
+        "SKU_D": 825,
+        "SKU_E": 749
+      },
+      "policy": {
+        "SKU_A": {
+          "type": "base_stock",
+          "base_stock_level": 1736
+        },
+        "SKU_B": {
+          "type": "base_stock",
+          "base_stock_level": 942
+        },
+        "SKU_C": {
+          "type": "base_stock",
+          "base_stock_level": 1093
+        },
+        "SKU_D": {
+          "type": "base_stock",
+          "base_stock_level": 825
+        },
+        "SKU_E": {
+          "type": "base_stock",
+          "base_stock_level": 749
+        }
+      },
+      "holding_cost": {
+        "SKU_A": 0.015,
+        "SKU_B": 0.018,
+        "SKU_C": 0.016,
+        "SKU_D": 0.017,
+        "SKU_E": 0.016
+      },
+      "shortage_cost": 0.0,
+      "order_cost_fixed": {
+        "SKU_A": 12.0,
+        "SKU_B": 10.0,
+        "SKU_C": 11.0,
+        "SKU_D": 10.0,
+        "SKU_E": 9.0
+      },
+      "order_cost_per_unit": {
+        "SKU_A": 0.008,
+        "SKU_B": 0.006,
+        "SKU_C": 0.007,
+        "SKU_D": 0.007,
+        "SKU_E": 0.006
+      }
+    },
+    {
+      "id": "W2",
+      "type": "warehouse",
+      "initial_inventory": {
+        "SKU_A": 1849,
+        "SKU_B": 639,
+        "SKU_C": 1067,
+        "SKU_D": 1046,
+        "SKU_E": 648
+      },
+      "policy": {
+        "SKU_A": {
+          "type": "base_stock",
+          "base_stock_level": 1849
+        },
+        "SKU_B": {
+          "type": "base_stock",
+          "base_stock_level": 639
+        },
+        "SKU_C": {
+          "type": "base_stock",
+          "base_stock_level": 1067
+        },
+        "SKU_D": {
+          "type": "base_stock",
+          "base_stock_level": 1046
+        },
+        "SKU_E": {
+          "type": "base_stock",
+          "base_stock_level": 648
+        }
+      },
+      "holding_cost": {
+        "SKU_A": 0.015,
+        "SKU_B": 0.018,
+        "SKU_C": 0.016,
+        "SKU_D": 0.017,
+        "SKU_E": 0.016
+      },
+      "shortage_cost": 0.0,
+      "order_cost_fixed": {
+        "SKU_A": 12.0,
+        "SKU_B": 10.0,
+        "SKU_C": 11.0,
+        "SKU_D": 10.0,
+        "SKU_E": 9.0
+      },
+      "order_cost_per_unit": {
+        "SKU_A": 0.008,
+        "SKU_B": 0.006,
+        "SKU_C": 0.007,
+        "SKU_D": 0.007,
+        "SKU_E": 0.006
+      }
+    },
+    {
+      "id": "R1",
+      "type": "retailer",
+      "initial_inventory": {
+        "SKU_A": 588,
+        "SKU_B": 319,
+        "SKU_C": 404,
+        "SKU_D": 289,
+        "SKU_E": 219
+      },
+      "policy": {
+        "SKU_A": {
+          "type": "base_stock",
+          "base_stock_level": 588
+        },
+        "SKU_B": {
+          "type": "base_stock",
+          "base_stock_level": 319
+        },
+        "SKU_C": {
+          "type": "base_stock",
+          "base_stock_level": 404
+        },
+        "SKU_D": {
+          "type": "base_stock",
+          "base_stock_level": 289
+        },
+        "SKU_E": {
+          "type": "base_stock",
+          "base_stock_level": 219
+        }
+      },
+      "holding_cost": {
+        "SKU_A": 0.025,
+        "SKU_B": 0.03,
+        "SKU_C": 0.027,
+        "SKU_D": 0.028,
+        "SKU_E": 0.026
+      },
+      "shortage_cost": {
+        "SKU_A": 0.5,
+        "SKU_B": 0.6,
+        "SKU_C": 0.45,
+        "SKU_D": 0.55,
+        "SKU_E": 0.4
+      },
+      "order_cost_fixed": 0.0,
+      "order_cost_per_unit": {
+        "SKU_A": 0.002,
+        "SKU_B": 0.002,
+        "SKU_C": 0.002,
+        "SKU_D": 0.002,
+        "SKU_E": 0.002
+      }
+    },
+    {
+      "id": "R2",
+      "type": "retailer",
+      "initial_inventory": {
+        "SKU_A": 481,
+        "SKU_B": 285,
+        "SKU_C": 285,
+        "SKU_D": 228,
+        "SKU_E": 263
+      },
+      "policy": {
+        "SKU_A": {
+          "type": "base_stock",
+          "base_stock_level": 481
+        },
+        "SKU_B": {
+          "type": "base_stock",
+          "base_stock_level": 285
+        },
+        "SKU_C": {
+          "type": "base_stock",
+          "base_stock_level": 285
+        },
+        "SKU_D": {
+          "type": "base_stock",
+          "base_stock_level": 228
+        },
+        "SKU_E": {
+          "type": "base_stock",
+          "base_stock_level": 263
+        }
+      },
+      "holding_cost": {
+        "SKU_A": 0.025,
+        "SKU_B": 0.03,
+        "SKU_C": 0.027,
+        "SKU_D": 0.028,
+        "SKU_E": 0.026
+      },
+      "shortage_cost": {
+        "SKU_A": 0.5,
+        "SKU_B": 0.6,
+        "SKU_C": 0.45,
+        "SKU_D": 0.55,
+        "SKU_E": 0.4
+      },
+      "order_cost_fixed": 0.0,
+      "order_cost_per_unit": {
+        "SKU_A": 0.002,
+        "SKU_B": 0.002,
+        "SKU_C": 0.002,
+        "SKU_D": 0.002,
+        "SKU_E": 0.002
+      }
+    },
+    {
+      "id": "R3",
+      "type": "retailer",
+      "initial_inventory": {
+        "SKU_A": 1357,
+        "SKU_B": 473,
+        "SKU_C": 788,
+        "SKU_D": 773,
+        "SKU_E": 474
+      },
+      "policy": {
+        "SKU_A": {
+          "type": "base_stock",
+          "base_stock_level": 1357
+        },
+        "SKU_B": {
+          "type": "base_stock",
+          "base_stock_level": 473
+        },
+        "SKU_C": {
+          "type": "base_stock",
+          "base_stock_level": 788
+        },
+        "SKU_D": {
+          "type": "base_stock",
+          "base_stock_level": 773
+        },
+        "SKU_E": {
+          "type": "base_stock",
+          "base_stock_level": 474
+        }
+      },
+      "holding_cost": {
+        "SKU_A": 0.025,
+        "SKU_B": 0.03,
+        "SKU_C": 0.027,
+        "SKU_D": 0.028,
+        "SKU_E": 0.026
+      },
+      "shortage_cost": {
+        "SKU_A": 0.5,
+        "SKU_B": 0.6,
+        "SKU_C": 0.45,
+        "SKU_D": 0.55,
+        "SKU_E": 0.4
+      },
+      "order_cost_fixed": 0.0,
+      "order_cost_per_unit": {
+        "SKU_A": 0.002,
+        "SKU_B": 0.002,
+        "SKU_C": 0.002,
+        "SKU_D": 0.002,
+        "SKU_E": 0.002
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "Supplier",
+      "to": "W1",
+      "route_id": "Supplier_W1",
+      "mode": 1,
+      "lead_time": {
+        "type": "deterministic",
+        "value": 5
+      },
+      "capacity": 67.0,
+      "cost_full": 800.0,
+      "cost_half": 480.0,
+      "cost_quarter": 280.0
+    },
+    {
+      "from": "Supplier",
+      "to": "W2",
+      "route_id": "Supplier_W2",
+      "mode": 1,
+      "lead_time": {
+        "type": "deterministic",
+        "value": 6
+      },
+      "capacity": 67.0,
+      "cost_full": 900.0,
+      "cost_half": 540.0,
+      "cost_quarter": 315.0
+    },
+    {
+      "from": "W1",
+      "to": "R1",
+      "route_id": "W1_R1",
+      "mode": 1,
+      "lead_time": {
+        "type": "deterministic",
+        "value": 2
+      },
+      "capacity": 33.0,
+      "cost_full": 350.0,
+      "cost_half": 210.0,
+      "cost_quarter": 122.0
+    },
+    {
+      "from": "W1",
+      "to": "R2",
+      "route_id": "W1_R2",
+      "mode": 1,
+      "lead_time": {
+        "type": "deterministic",
+        "value": 3
+      },
+      "capacity": 33.0,
+      "cost_full": 400.0,
+      "cost_half": 240.0,
+      "cost_quarter": 140.0
+    },
+    {
+      "from": "W2",
+      "to": "R3",
+      "route_id": "W2_R3",
+      "mode": 1,
+      "lead_time": {
+        "type": "deterministic",
+        "value": 4
+      },
+      "capacity": 33.0,
+      "cost_full": 380.0,
+      "cost_half": 228.0,
+      "cost_quarter": 133.0
+    }
+  ],
+  "demand": [
+    {
+      "node": "R1",
+      "sku": "SKU_A",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_A/R1.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R2",
+      "sku": "SKU_A",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_A/R2.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R3",
+      "sku": "SKU_A",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_A/R3.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R1",
+      "sku": "SKU_B",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_B/R1.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R2",
+      "sku": "SKU_B",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_B/R2.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R3",
+      "sku": "SKU_B",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_B/R3.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R1",
+      "sku": "SKU_C",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_C/R1.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R2",
+      "sku": "SKU_C",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_C/R2.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R3",
+      "sku": "SKU_C",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_C/R3.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R1",
+      "sku": "SKU_D",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_D/R1.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R2",
+      "sku": "SKU_D",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_D/R2.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R3",
+      "sku": "SKU_D",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_D/R3.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R1",
+      "sku": "SKU_E",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_E/R1.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R2",
+      "sku": "SKU_E",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_E/R2.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    },
+    {
+      "node": "R3",
+      "sku": "SKU_E",
+      "generator": {
+        "type": "csv",
+        "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_E/R3.csv",
+        "date_col": "date",
+        "qty_col": "quantity",
+        "strategy": "clip"
+      }
+    }
+  ]
+}

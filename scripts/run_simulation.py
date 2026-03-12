@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 from engine.node import Node
 from engine.network import Network, Edge
 from engine.simulator import Simulator
+from engine.config_validator import validate_config, ConfigValidationError
 from policies.base_stock import BaseStockPolicy
 from policies.ss_policy import SsPolicy
 from policies.order_up_to import OrderUpToPolicy
@@ -177,14 +178,40 @@ def print_scenario_summary(cfg):
 # =========================
 
 def build_from_config(cfg_or_path):
-
     if isinstance(cfg_or_path, (str, os.PathLike)):
         with open(cfg_or_path, "r") as f:
             cfg = json.load(f)
+        _root = Path(cfg_or_path).resolve().parent
+        while _root.parent != _root and not (_root / "engine").exists():
+            _root = _root.parent
     elif isinstance(cfg_or_path, dict):
         cfg = cfg_or_path
+        _root = None
     else:
         raise TypeError("build_from_config expects a path or dict")
+    
+    # ------------------------------------------------------------
+    # Auto-wrap legacy single-SKU configs (for tests)
+    # ------------------------------------------------------------
+    if "skus" not in cfg:
+        cfg = dict(cfg)
+        cfg["skus"] = ["SKU1"]
+
+        for nd in cfg["nodes"]:
+            if "initial_inventory" in nd and not isinstance(nd["initial_inventory"], dict):
+                nd["initial_inventory"] = {"SKU1": nd["initial_inventory"]}
+
+            if "policy" in nd and not isinstance(list(nd["policy"].values())[0], dict):
+                nd["policy"] = {"SKU1": nd["policy"]}
+
+        for d in cfg.get("demand", []):
+            if "sku" not in d:
+                d["sku"] = "SKU1"
+
+    try:
+        validate_config(cfg, repo_root=_root)
+    except ConfigValidationError as e:
+        raise SystemExit(f"\n✗ Config validation failed:\n\n  {e}\n") from None
 
     top_seed = cfg.get("seed", None)
 
