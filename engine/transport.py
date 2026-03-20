@@ -16,6 +16,7 @@ class TransportOption:
     cost_quarter: float
     lead_time: int
     weight_capacity: Optional[float] = None   # kg cap; None = no weight constraint
+    min_dispatch_utilization: float = 0.0  # 0.0 = always dispatch
 
 
 @dataclass

@@ -220,7 +220,8 @@ class Node:
         # --------------------------------------------------------
         # Determine all (child, sku) needing service
         # --------------------------------------------------------
-        keys = set(self.backlog_children.keys()) | set(incoming.keys())
+        keys = sorted(set(self.backlog_children.keys()) | set(incoming.keys()))
+
 
         for (child, sku) in keys:
 

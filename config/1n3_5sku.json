@@ -356,7 +356,8 @@
       "capacity": 67.0,
       "cost_full": 800.0,
       "cost_half": 480.0,
-      "cost_quarter": 280.0
+      "cost_quarter": 280.0,
+      "min_dispatch_utilization": 0
     },
     {
       "from": "Supplier",

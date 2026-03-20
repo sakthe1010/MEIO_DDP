@@ -43,6 +43,7 @@ class Simulator:
     orders_log: List[Dict] = field(default_factory=list)
     shipments_log: List[Dict] = field(default_factory=list)
     planner: TransportPlanner = field(default_factory=TransportPlanner)
+    pending_dispatch: Dict[Tuple[str, str], Dict[str, float]] = field(default_factory=dict)
 
     # ============================================================
     # MAIN RUN
@@ -176,20 +177,68 @@ class Simulator:
                 )
 
                 # Charge transport cost
-                shipped_by_child: Dict[str, Dict[str, float]] = {}
-                for (child, sku), ship_qty in shipped.items():
-                    shipped_by_child.setdefault(child, {})[sku] = float(ship_qty)
+                # shipped_by_child: Dict[str, Dict[str, float]] = {}
+                # for (child, sku), ship_qty in shipped.items():
+                #     shipped_by_child.setdefault(child, {})[sku] = float(ship_qty)
 
-                for child, sku_qtys in shipped_by_child.items():
+                # for child, sku_qtys in shipped_by_child.items():
+                #     sku_volumes = {
+                #         sku: qty * self.volume_per_unit.get(sku, 1.0)
+                #         for sku, qty in sku_qtys.items()
+                #     }
+                #     options = self.network.get_transport_options(parent_id, child)
+                #     loads = self.planner.plan(quantities=sku_volumes, options=options)
+                #     for load in loads:
+                #         for sku, sku_cost in load.cost_by_sku.items():
+                #             transport_cost_today[parent_id][sku] += sku_cost
+
+                # Accumulate shipped quantities into pending dispatch buffer
+                for (child, sku), ship_qty in shipped.items():
+                    lane = (parent_id, child)
+                    self.pending_dispatch.setdefault(lane, {})
+                    self.pending_dispatch[lane][sku] = (
+                        self.pending_dispatch[lane].get(sku, 0.0) + float(ship_qty)
+                    )
+
+                # Check each lane — dispatch if threshold met or no threshold set
+                for child in self.network.children(parent_id):
+                    lane = (parent_id, child)
+                    pending = self.pending_dispatch.get(lane, {})
+                    if not pending or all(v <= 0 for v in pending.values()):
+                        continue
+
+                    options = self.network.get_transport_options(parent_id, child)
+                    if not options:
+                        continue
+
+                    # Use first option to check threshold (cheapest mode)
+                    opt = sorted(options, key=lambda o: o.mode)[0]
+                    min_util = opt.min_dispatch_utilization
+
+                    if min_util > 0.0:
+                        # Convert pending units to volumes
+                        total_pending_vol = sum(
+                            qty * self.volume_per_unit.get(sku, 1.0)
+                            for sku, qty in pending.items()
+                        )
+                        current_util = total_pending_vol / opt.capacity
+                        if current_util < min_util:
+                            # Not enough to dispatch yet — leave on dock
+                            continue
+
+                    # Threshold met (or no threshold) — dispatch now
                     sku_volumes = {
                         sku: qty * self.volume_per_unit.get(sku, 1.0)
-                        for sku, qty in sku_qtys.items()
+                        for sku, qty in pending.items()
+                        if qty > 0
                     }
-                    options = self.network.get_transport_options(parent_id, child)
                     loads = self.planner.plan(quantities=sku_volumes, options=options)
                     for load in loads:
                         for sku, sku_cost in load.cost_by_sku.items():
                             transport_cost_today[parent_id][sku] += sku_cost
+
+                    # Clear dispatched lane
+                    self.pending_dispatch[lane] = {}
 
             # =====================================================
             # 4) PLACE UPSTREAM ORDERS (PER SKU)

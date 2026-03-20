@@ -12,14 +12,15 @@ class Edge:
     child: str
     lead_time_sampler: Callable[[], int]
     share: Optional[float] = None  # optional weight for route selection
-    transport_cost_per_unit: Optional[float] = None  # optional cost per unit transported
-    # NEW transport attributes
+    transport_cost_per_unit: Optional[float] = None 
     route_id: Optional[str] = None
     mode: Optional[int] = None
     capacity: Optional[float] = None
     cost_full: Optional[float] = None
     cost_half: Optional[float] = None
     cost_quarter: Optional[float] = None
+    min_dispatch_utilization: float = 0.0
+
 def _det_lt_one():
     return 1
 
@@ -30,8 +31,11 @@ class Network:
     edges: Dict[Tuple[str, str], List[Edge]] = field(default_factory=dict)     # (parent, child) -> [Edge]
     parents_of: Dict[str, str] = field(default_factory=dict)                   # single-sourcing (one parent per child)
     children_of: Dict[str, List[str]] = field(default_factory=dict)
+    seed: Optional[int] = None
+
 
     def __post_init__(self):
+        self._rng = random.Random(self.seed)
         # rebuild adjacency maps from existing edges (if any)
         self.parents_of.clear()
         self.children_of.clear()
@@ -61,7 +65,8 @@ class Network:
         cost_full: float = 100.0,
         cost_half: float = 60.0,
         cost_quarter: float = 35.0,
-        route_id: Optional[str] = None
+        route_id: Optional[str] = None,
+        min_dispatch_utilization: float = 0.0,
     ) -> None:
         """Add a lane. Defaults to deterministic L=1 if no sampler is given."""
         sampler = lead_time_sampler or _det_lt_one
@@ -78,7 +83,8 @@ class Network:
                 cost_full=cost_full,
                 cost_half=cost_half,
                 cost_quarter=cost_quarter,
-                route_id=route_id
+                route_id=route_id,
+                min_dispatch_utilization=min_dispatch_utilization,
             )
         )
         if child_id in self.parents_of and self.parents_of[child_id] != parent_id:
@@ -101,7 +107,7 @@ class Network:
         probs = [w / total for w in weights]
 
         def sample():
-            r = random.random()
+            r = self._rng.random()
             acc = 0.0
             for e, p in zip(edge_list, probs):
                 acc += p
@@ -129,13 +135,13 @@ class Network:
             weights = [w / total for w in raw_weights]
             samplers = [e.lead_time_sampler for e in edge_list]
 
-            def make_sampler(samps, wts):
+            def make_sampler(samps, wts, rng):
                 def sampler():
-                    chosen = random.choices(samps, weights=wts, k=1)[0]
+                    chosen = rng.choices(samps, weights=wts, k=1)[0]
                     return chosen()
                 return sampler
 
-            result[child_id] = make_sampler(samplers, weights)
+            result[child_id] = make_sampler(samplers, weights, self._rng)
         return result
     
     def get_transport_options(self, parent_id: str, child_id: str) -> List[TransportOption]:
@@ -168,6 +174,7 @@ class Network:
                     cost_half=float(e.cost_half) if e.cost_half is not None else 60.0,
                     cost_quarter=float(e.cost_quarter) if e.cost_quarter is not None else 35.0,
                     lead_time=e.lead_time_sampler(),
+                    min_dispatch_utilization=e.min_dispatch_utilization,
                 )
             )
 

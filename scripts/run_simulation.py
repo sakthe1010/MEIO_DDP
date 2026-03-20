@@ -219,21 +219,21 @@ def build_from_config(cfg_or_path):
     # GLOBAL SKU LIST
     # ============================================================
 
-    if "skus" not in cfg:
-        # Auto-wrap single SKU configs for tests
-        cfg = dict(cfg)  # shallow copy
-        cfg["skus"] = ["SKU1"]
+    # if "skus" not in cfg:
+    #     # Auto-wrap single SKU configs for tests
+    #     cfg = dict(cfg)  # shallow copy
+    #     cfg["skus"] = ["SKU1"]
 
-        for nd in cfg["nodes"]:
-            if "initial_inventory" in nd and not isinstance(nd["initial_inventory"], dict):
-                nd["initial_inventory"] = {"SKU1": nd["initial_inventory"]}
+    #     for nd in cfg["nodes"]:
+    #         if "initial_inventory" in nd and not isinstance(nd["initial_inventory"], dict):
+    #             nd["initial_inventory"] = {"SKU1": nd["initial_inventory"]}
 
-            if "policy" in nd and not isinstance(list(nd["policy"].values())[0], dict):
-                nd["policy"] = {"SKU1": nd["policy"]}
+    #         if "policy" in nd and not isinstance(list(nd["policy"].values())[0], dict):
+    #             nd["policy"] = {"SKU1": nd["policy"]}
 
-        for d in cfg.get("demand", []):
-            if "sku" not in d:
-                d["sku"] = "SKU1"
+    #     for d in cfg.get("demand", []):
+    #         if "sku" not in d:
+    #             d["sku"] = "SKU1"
 
     skus = cfg["skus"]
 
@@ -322,7 +322,7 @@ def build_from_config(cfg_or_path):
     # BUILD NETWORK
     # ============================================================
 
-    net = Network()
+    net = Network(seed=top_seed)
 
     for node in nodes.values():
         net.add_node(node)
@@ -350,7 +350,8 @@ def build_from_config(cfg_or_path):
             cost_half=e.get("cost_half", 0.0),
             cost_quarter=e.get("cost_quarter", 0.0),
             lead_time_sampler=sampler,
-            share=e.get("share", None)
+            share=e.get("share", None),
+            min_dispatch_utilization=float(e.get("min_dispatch_utilization", 0.0)),
         )
 
     # ============================================================
@@ -414,6 +415,18 @@ def build_from_config(cfg_or_path):
 
     return net, demand_by_node, T
 
+def build_volume_map(cfg: dict) -> dict:
+        """
+        Extract volume_per_unit per SKU from config.
+        Used by main() and by the optimizer so both get consistent values.
+        """
+        skus = cfg.get("skus", ["SKU1"])
+        sku_props = cfg.get("sku_properties", {})
+        return {
+            sku: float(sku_props.get(sku, {}).get("volume_per_unit", 1.0))
+            for sku in skus
+        }
+
 # =========================
 # MAIN
 # =========================
@@ -427,17 +440,7 @@ def main():
     args = parser.parse_args()
 
     print_header()
-    def build_volume_map(cfg: dict) -> dict:
-        """
-        Extract volume_per_unit per SKU from config.
-        Used by main() and by the optimizer so both get consistent values.
-        """
-        skus = cfg.get("skus", ["SKU1"])
-        sku_props = cfg.get("sku_properties", {})
-        return {
-            sku: float(sku_props.get(sku, {}).get("volume_per_unit", 1.0))
-            for sku in skus
-        }
+    
 
     with open(args.config) as f:
         cfg = json.load(f)
