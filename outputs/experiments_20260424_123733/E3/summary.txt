@@ -1,0 +1,15 @@
+Experiment : E3 — Joint Opt (≥92%)
+=======================================================
+Total cost        :   1,421,903.90
+  Holding         :     548,555.52  (38.6%)
+  Transport       :     513,944.00  (36.1%)
+  Ordering        :     222,669.08  (15.7%)
+  Shortage        :     136,735.30  (9.6%)
+Fill rate         :         94.93%
+
+Fill rate by SKU:
+  SKU_A         91.51%
+  SKU_B         99.82%
+  SKU_C         94.66%
+  SKU_D         94.56%
+  SKU_E         99.15%

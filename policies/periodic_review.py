@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from .base_stock import BasePolicy
 
 class PeriodicReviewPolicy(BasePolicy):
@@ -20,12 +20,12 @@ class PeriodicReviewPolicy(BasePolicy):
         self.order_up_to = order_up_to
         self.last_review = -1  # Initialize to -1 to ensure first period triggers review
 
-    def order_qty(self, 
+    def order_qty(self,
                  on_hand: int,
                  backlog_external: int,
                  backlog_children: int,
                  pipeline_in: int,
-                 t: int) -> int:
+                 t: Optional[int] = None) -> int:
         """
         Determine order quantity based on current state
         
@@ -46,8 +46,7 @@ class PeriodicReviewPolicy(BasePolicy):
         --------
         int : Order quantity
         """
-        # Only review every k periods
-        if t % self.review_period != 0:
+        if t is None or t % self.review_period != 0:
             return 0
             
         # Calculate current inventory position

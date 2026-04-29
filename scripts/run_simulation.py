@@ -23,6 +23,8 @@ from policies.ss_policy import SsPolicy
 from policies.order_up_to import OrderUpToPolicy
 from policies.km_cycle import KmCyclePolicy
 from policies.periodic_review import PeriodicReviewPolicy
+from policies.rq_policy import RQPolicy
+from policies.echelon_stock import EchelonStockPolicy
 
 # demand/lead-time generators (inline)
 from dataclasses import dataclass
@@ -297,6 +299,19 @@ def build_from_config(cfg_or_path):
                     order_up_to=pol["order_up_to"]
                 )
 
+            elif ptype == "rq":
+
+                policy = RQPolicy(
+                    reorder_point=pol["reorder_point"],
+                    order_quantity=pol["order_qty"]
+                )
+
+            elif ptype == "echelon_stock":
+
+                policy = EchelonStockPolicy(
+                    echelon_base_stock_level=pol["echelon_base_stock_level"]
+                )
+
             else:
                 raise ValueError(f"Unknown policy type {ptype}")
 
@@ -415,15 +430,38 @@ def build_from_config(cfg_or_path):
 
     return net, demand_by_node, T
 
+
+def build_disruptions(cfg: dict) -> list:
+    """Extract disruption events from config.
+
+    Config format:
+        "disruptions": [
+            {"node_id": "Supplier", "start": 100, "end": 115}
+        ]
+    Each event blocks the named node from shipping during [start, end).
+    """
+    return [
+        {"node_id": d["node_id"], "start": int(d["start"]), "end": int(d["end"])}
+        for d in cfg.get("disruptions", [])
+    ]
+
 def build_volume_map(cfg: dict) -> dict:
-        """
-        Extract volume_per_unit per SKU from config.
-        Used by main() and by the optimizer so both get consistent values.
-        """
+        """Extract volume_per_unit per SKU from config."""
         skus = cfg.get("skus", ["SKU1"])
         sku_props = cfg.get("sku_properties", {})
         return {
             sku: float(sku_props.get(sku, {}).get("volume_per_unit", 1.0))
+            for sku in skus
+        }
+
+def build_weight_map(cfg: dict) -> dict:
+        """Extract weight_per_unit per SKU from config (kg per unit).
+        Returns 0.0 for SKUs without weight data — weight constraint inactive.
+        """
+        skus = cfg.get("skus", ["SKU1"])
+        sku_props = cfg.get("sku_properties", {})
+        return {
+            sku: float(sku_props.get(sku, {}).get("weight_per_unit", 0.0))
             for sku in skus
         }
 
@@ -455,8 +493,9 @@ def main():
     run_dir = Path(args.outdir) / f"{run_name}_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    sim_sum = Simulator(network=net, demand_by_node=demand_by_node, 
-                        T=T, order_processing_delay=1, volume_per_unit=volume_per_unit)
+    sim_sum = Simulator(network=net, demand_by_node=demand_by_node,
+                            T=T, order_processing_delay=1, volume_per_unit=volume_per_unit,
+                            max_dispatch_wait=3)
     metrics_sum = sim_sum.run(mode="summary")
     pd.DataFrame(sim_sum.inventory_log).to_csv(run_dir / "inventory_log.csv", index=False)
     pd.DataFrame(sim_sum.orders_log).to_csv(run_dir / "orders_log.csv", index=False)

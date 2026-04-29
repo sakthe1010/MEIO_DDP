@@ -195,7 +195,7 @@ class Node:
         child_nodes: Dict[str, "Node"],
         lead_time_sampler_by_child: Dict[str, Callable[[], int]],
         on_ship: Optional[
-            Callable[[str, str, str, int, int, int], None]
+            Callable[[str, str, str, int, int], None]
         ] = None,
     ) -> Dict[Tuple[str, str], int]:
 
@@ -246,17 +246,6 @@ class Node:
                 if not self.infinite_supply:
                     self.on_hand[sku] -= ship
 
-                L = int(lead_time_sampler_by_child[child]())
-                arrival = t + L if L > 0 else t + 1
-
-                child_nodes[child].pipeline_in.append(
-                    Shipment(
-                        arrival_time=arrival,
-                        sku=sku,
-                        qty=ship
-                    )
-                )
-
                 shipped[(child, sku)] = ship
 
                 if on_ship:
@@ -265,7 +254,6 @@ class Node:
                         child,
                         sku,
                         t,
-                        L,
                         ship
                     )
 

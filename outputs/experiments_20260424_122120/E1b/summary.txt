@@ -1,0 +1,15 @@
+Experiment : E1b — Transport-Only Optimization
+=======================================================
+Total cost        :     839,668.09
+  Holding         :     138,040.50  (16.4%)
+  Transport       :     177,639.00  (21.2%)
+  Ordering        :     222,669.08  (26.5%)
+  Shortage        :     301,319.50  (35.9%)
+Fill rate         :         86.15%
+
+Fill rate by SKU:
+  SKU_A         88.26%
+  SKU_B         83.41%
+  SKU_C         85.38%
+  SKU_D         81.99%
+  SKU_E         90.17%

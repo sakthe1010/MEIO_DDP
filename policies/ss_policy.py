@@ -6,6 +6,7 @@ class SsPolicy(BasePolicy):
     s: int
     S: int
 
-    def order_qty(self, on_hand, backlog_external, backlog_children, pipeline_in):
+    def order_qty(self, on_hand, backlog_external, backlog_children, pipeline_in,
+                  t=None):
         ip = on_hand - (backlog_external + backlog_children) + pipeline_in
         return max(0, self.S - ip) if ip <= self.s else 0

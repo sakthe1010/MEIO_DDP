@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 from engine.network import Network
-from engine.node import Node
+from engine.node import Node, Shipment
 from engine.transport import TransportPlanner, VehicleLoad
+from policies.echelon_stock import EchelonStockPolicy
 
 
 # ============================================================
@@ -35,16 +36,24 @@ class Simulator:
     network: Network
     demand_by_node: Dict[str, Dict[str, callable]]  # node -> sku -> demand_fn
     T: int
-    order_processing_delay: int = 0
+    order_processing_delay: int = 1
     volume_per_unit: Dict[str, float] = field(default_factory=dict)
 
+    weight_per_unit: Dict[str, float] = field(default_factory=dict)
     metrics: List[MetricsRow] = field(default_factory=list)
     inventory_log: List[Dict] = field(default_factory=list)
     orders_log: List[Dict] = field(default_factory=list)
     shipments_log: List[Dict] = field(default_factory=list)
-    planner: TransportPlanner = field(default_factory=TransportPlanner)
     pending_dispatch: Dict[Tuple[str, str], Dict[str, float]] = field(default_factory=dict)
+    pending_dispatch_time: Dict[Tuple[str, str], int] = field(default_factory=dict)
+    max_dispatch_wait: int = 3
+    # disruptions: list of {"node_id": str, "start": int, "end": int}
+    # During [start, end) the node cannot ship anything (supply disruption).
+    disruptions: List[Dict] = field(default_factory=list)
 
+    def __post_init__(self):
+        # Build planner with weight awareness after all fields are set
+        self.planner = TransportPlanner(weight_per_unit=self.weight_per_unit)
     # ============================================================
     # MAIN RUN
     # ============================================================
@@ -146,22 +155,24 @@ class Simulator:
 
                 parent = self.network.nodes[parent_id]
 
+                # Skip shipping if this node is currently disrupted
+                disrupted = any(
+                    d["node_id"] == parent_id and d["start"] <= t < d["end"]
+                    for d in self.disruptions
+                )
+                if disrupted:
+                    # Orders accumulate as backlog — will be served once disruption ends
+                    for (child, sku, q) in items:
+                        parent.add_inbound_order(child, sku, q)
+                    continue
+
                 for (child, sku, q) in items:
                     parent.add_inbound_order(child, sku, q)
 
                 child_nodes = {c: self.network.nodes[c] for c in self.network.children(parent_id)}
                 lt_map = self.network.lead_time_sampler_by_child(parent_id)
 
-                def _on_ship(p, c, sku, tt, L, qty):
-                    self.shipments_log.append({
-                        "t_ship": tt,
-                        "parent": p,
-                        "child": c,
-                        "sku": sku,
-                        "lead_time": L,
-                        "qty": qty
-                    })
-
+                def _on_ship(p, c, sku, tt, qty):
                     child_node = self.network.nodes[c]
                     child_node.placed_orders[sku] = max(
                         0,
@@ -199,8 +210,11 @@ class Simulator:
                     self.pending_dispatch[lane][sku] = (
                         self.pending_dispatch[lane].get(sku, 0.0) + float(ship_qty)
                     )
+            # =====================================================
+            # 3b) DISPATCH PENDING SHIPMENTS (ALL LANES EVERY DAY)
+            # =====================================================
 
-                # Check each lane — dispatch if threshold met or no threshold set
+            for parent_id in self.network.nodes:
                 for child in self.network.children(parent_id):
                     lane = (parent_id, child)
                     pending = self.pending_dispatch.get(lane, {})
@@ -211,22 +225,25 @@ class Simulator:
                     if not options:
                         continue
 
-                    # Use first option to check threshold (cheapest mode)
                     opt = sorted(options, key=lambda o: o.mode)[0]
                     min_util = opt.min_dispatch_utilization
 
+                    # Track how long this lane has been waiting
+                    wait = self.pending_dispatch_time.get(lane, 0)
+                    self.pending_dispatch_time[lane] = wait + 1
+
                     if min_util > 0.0:
-                        # Convert pending units to volumes
                         total_pending_vol = sum(
                             qty * self.volume_per_unit.get(sku, 1.0)
                             for sku, qty in pending.items()
                         )
                         current_util = total_pending_vol / opt.capacity
-                        if current_util < min_util:
-                            # Not enough to dispatch yet — leave on dock
+                        # Force dispatch after max_dispatch_wait days — prevents indefinite blocking
+                        force = self.pending_dispatch_time.get(lane, 0) >= self.max_dispatch_wait
+                        if current_util < min_util and not force:
                             continue
 
-                    # Threshold met (or no threshold) — dispatch now
+                    # Threshold met (or forced) — physically dispatch now
                     sku_volumes = {
                         sku: qty * self.volume_per_unit.get(sku, 1.0)
                         for sku, qty in pending.items()
@@ -237,8 +254,44 @@ class Simulator:
                         for sku, sku_cost in load.cost_by_sku.items():
                             transport_cost_today[parent_id][sku] += sku_cost
 
-                    # Clear dispatched lane
+                    # NOW physically move goods into child pipeline
+                    lt_map = self.network.lead_time_sampler_by_child(parent_id)
+                    child_node = self.network.nodes[child]
+                    for sku, qty in pending.items():
+                        if qty <= 0:
+                            continue
+                        L = int(lt_map[child]())
+                        arrival = t + L if L > 0 else t + 1
+                        child_node.pipeline_in.append(
+                            Shipment(arrival_time=arrival, sku=sku, qty=int(qty))
+                        )
+                        self.shipments_log.append({
+                            "t_ship": t,
+                            "parent": parent_id,
+                            "child": child,
+                            "sku": sku,
+                            "lead_time": L,
+                            "qty": int(qty)
+                        })
+
+                    # DIAGNOSTIC
+                    # if min_util > 0.0:
+                    #     _util = total_pending_vol / opt.capacity
+                    #     _forced = force
+                    # else:
+                    #     _util = 1.0
+                    #     _forced = False
+                    # if not hasattr(self, '_dispatch_log'):
+                    #     self._dispatch_log = []
+                    # self._dispatch_log.append({
+                    #     'lane': str(lane), 't': t,
+                    #     'util': round(_util, 3),
+                    #     'forced': _forced
+                    # })
+
                     self.pending_dispatch[lane] = {}
+                    self.pending_dispatch_time[lane] = 0
+                
 
             # =====================================================
             # 4) PLACE UPSTREAM ORDERS (PER SKU)
@@ -262,24 +315,31 @@ class Simulator:
                         (nid, sku), 0
                     )
 
-                    effective_pipeline = (
-                        node.total_pipeline_in(sku) + parent_backlog_for_me
-                    )
+                    lane = (parent_id, nid)
+                    pending_for_me = self.pending_dispatch.get(lane, {}).get(sku, 0.0)
 
-                    try:
+                    if isinstance(policy, EchelonStockPolicy):
+                        # Echelon IP: sum on_hand + pipeline across all downstream nodes
+                        echelon_stock = self._echelon_pipeline(nid, sku)
+                        q = policy.order_qty(
+                            on_hand=node.on_hand[sku],
+                            backlog_external=node.backlog_external[sku],
+                            backlog_children=node.total_backlog_children(sku),
+                            pipeline_in=echelon_stock - node.on_hand[sku],
+                            t=t
+                        )
+                    else:
+                        effective_pipeline = (
+                            node.total_pipeline_in(sku)
+                            + parent_backlog_for_me
+                            + int(pending_for_me)
+                        )
                         q = policy.order_qty(
                             on_hand=node.on_hand[sku],
                             backlog_external=node.backlog_external[sku],
                             backlog_children=node.total_backlog_children(sku),
                             pipeline_in=effective_pipeline,
                             t=t
-                        )
-                    except TypeError:
-                        q = policy.order_qty(
-                            on_hand=node.on_hand[sku],
-                            backlog_external=node.backlog_external[sku],
-                            backlog_children=node.total_backlog_children(sku),
-                            pipeline_in=effective_pipeline
                         )
 
 
@@ -378,6 +438,30 @@ class Simulator:
     # ============================================================
     # TOPO SORT (UNCHANGED)
     # ============================================================
+
+    def _echelon_pipeline(self, nid: str, sku: str) -> int:
+        """
+        Echelon inventory position for node `nid`, SKU `sku`.
+        = on_hand(nid) + pipeline_in(nid)
+          + sum over all downstream nodes d: on_hand(d) + pipeline_in(d)
+          + pending_dispatch en route to any downstream node
+        Used by EchelonStockPolicy to compute the correct order trigger.
+        """
+        total = 0
+        stack = [nid]
+        visited = set()
+        while stack:
+            curr = stack.pop()
+            if curr in visited:
+                continue
+            visited.add(curr)
+            n = self.network.nodes[curr]
+            total += n.on_hand.get(sku, 0) + n.total_pipeline_in(sku)
+            for child in self.network.children(curr):
+                lane = (curr, child)
+                total += int(self.pending_dispatch.get(lane, {}).get(sku, 0.0))
+                stack.append(child)
+        return total
 
     def _topological_order(self) -> List[str]:
 

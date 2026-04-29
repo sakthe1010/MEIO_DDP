@@ -353,7 +353,7 @@
         "type": "deterministic",
         "value": 5
       },
-      "capacity": 67.0,
+      "capacity": 20.0,
       "cost_full": 800.0,
       "cost_half": 480.0,
       "cost_quarter": 280.0,
@@ -368,7 +368,7 @@
         "type": "deterministic",
         "value": 6
       },
-      "capacity": 67.0,
+      "capacity": 15.0,
       "cost_full": 900.0,
       "cost_half": 540.0,
       "cost_quarter": 315.0
@@ -382,7 +382,7 @@
         "type": "deterministic",
         "value": 2
       },
-      "capacity": 33.0,
+      "capacity": 11.0,
       "cost_full": 350.0,
       "cost_half": 210.0,
       "cost_quarter": 122.0
@@ -396,7 +396,7 @@
         "type": "deterministic",
         "value": 3
       },
-      "capacity": 33.0,
+      "capacity": 8.0,
       "cost_full": 400.0,
       "cost_half": 240.0,
       "cost_quarter": 140.0
@@ -410,7 +410,7 @@
         "type": "deterministic",
         "value": 4
       },
-      "capacity": 33.0,
+      "capacity": 15.0,
       "cost_full": 380.0,
       "cost_half": 228.0,
       "cost_quarter": 133.0

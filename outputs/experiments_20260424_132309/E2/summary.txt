@@ -1,0 +1,15 @@
+Experiment : E2 — Inventory-Only Opt (≥92%)
+=======================================================
+Total cost        :   2,700,387.63
+  Holding         :     539,679.95  (20.0%)
+  Transport       :   1,891,389.00  (70.0%)
+  Ordering        :     222,669.08  (8.2%)
+  Shortage        :      46,649.60  (1.7%)
+Fill rate         :         97.33%
+
+Fill rate by SKU:
+  SKU_A         96.73%
+  SKU_B         97.98%
+  SKU_C         99.30%
+  SKU_D         95.63%
+  SKU_E         97.42%

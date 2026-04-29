@@ -1,0 +1,15 @@
+Experiment : E0 — Analytical Baseline
+=======================================================
+Total cost        :   2,553,418.08
+  Holding         :     138,040.50  (5.4%)
+  Transport       :   1,891,389.00  (74.1%)
+  Ordering        :     222,669.08  (8.7%)
+  Shortage        :     301,319.50  (11.8%)
+Fill rate         :         86.15%
+
+Fill rate by SKU:
+  SKU_A         88.26%
+  SKU_B         83.41%
+  SKU_C         85.38%
+  SKU_D         81.99%
+  SKU_E         90.17%

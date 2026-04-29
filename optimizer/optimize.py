@@ -22,9 +22,9 @@ Usage (programmatic)
 --------------------
   from optimizer.optimize import run_optimizer
   result = run_optimizer("config/1n3_5sku.json", mode="joint", n_trials=100)
-  print(result.best_params)
-  print(result.best_cost)
-  print(result.best_fill_rate)
+  # OR pass a pre-loaded dict:
+  result = run_optimizer(base_cfg=cfg_dict, mode="joint", n_trials=100,
+                         volume_per_unit=vpu_dict)
 """
 
 from __future__ import annotations
@@ -70,10 +70,9 @@ class OptimizationResult:
 # ============================================================
 
 # Base-stock level search bounds — multipliers on the analytical S level
-# from the config.  1.0 = keep analytical value, 2.0 = double it.
 S_LOWER_MULT = 0.3    # minimum = 30% of analytical S
 S_UPPER_MULT = 3.0    # maximum = 300% of analytical S
-S_MIN_ABS    = 10     # absolute floor (units) so we never try S=0
+S_MIN_ABS    = 10     # absolute floor so we never try S=0
 
 # Dispatch utilization bounds
 DISPATCH_LOWER = 0.0
@@ -85,10 +84,7 @@ DISPATCH_UPPER = 0.9
 # ============================================================
 
 def _extract_base_stock_levels(cfg: dict) -> Dict[Tuple[str, str], int]:
-    """
-    Return {(node_id, sku): base_stock_level} for all non-supplier nodes
-    that use base_stock policy.  Nodes using other policies are left untouched.
-    """
+    """Return {(node_id, sku): base_stock_level} for all non-supplier nodes."""
     skus = cfg["skus"]
     levels = {}
     for nd in cfg["nodes"]:
@@ -113,9 +109,9 @@ def _extract_dispatch_thresholds(cfg: dict) -> Dict[str, float]:
 def _apply_params(cfg: dict, params: dict) -> dict:
     """
     Deep-copy cfg and inject candidate parameter values.
-    params keys follow the convention:
-      S_{node_id}__{sku}          -> base_stock_level
-      D_{route_id}                -> min_dispatch_utilization
+    params keys:
+      S_{node_id}__{sku}   -> base_stock_level
+      D_{route_id}         -> min_dispatch_utilization
     """
     cfg = copy.deepcopy(cfg)
     skus = cfg["skus"]
@@ -129,9 +125,6 @@ def _apply_params(cfg: dict, params: dict) -> dict:
                 pol = nd["policy"].get(sku, {})
                 if pol.get("type") == "base_stock":
                     nd["policy"][sku]["base_stock_level"] = int(params[key])
-                    # keep initial_inventory in sync so warm-start is consistent
-                    if isinstance(nd.get("initial_inventory"), dict):
-                        nd["initial_inventory"][sku] = int(params[key])
 
     for e in cfg["edges"]:
         rid = e.get("route_id") or f"{e['from']}_{e['to']}"
@@ -148,8 +141,7 @@ def _apply_params(cfg: dict, params: dict) -> dict:
 
 def evaluate(cfg: dict, volume_per_unit: dict) -> Tuple[float, float]:
     """
-    Run one full simulation with the given config.
-    Returns (total_cost, fill_rate).
+    Run one full simulation. Returns (total_cost, fill_rate).
     """
     net, demand_by_node, T = build_from_config(cfg)
     sim = Simulator(
@@ -161,10 +153,10 @@ def evaluate(cfg: dict, volume_per_unit: dict) -> Tuple[float, float]:
     )
     sim.run()
 
-    total_cost  = sum(m.total_cost for m in sim.metrics)
-    total_dem   = sum(m.demand for m in sim.metrics)
-    total_ful   = sum(m.fulfilled_external for m in sim.metrics)
-    fill_rate   = total_ful / total_dem if total_dem > 0 else 1.0
+    total_cost = sum(m.total_cost for m in sim.metrics)
+    total_dem  = sum(m.demand for m in sim.metrics)
+    total_ful  = sum(m.fulfilled_external for m in sim.metrics)
+    fill_rate  = total_ful / total_dem if total_dem > 0 else 1.0
 
     return total_cost, fill_rate
 
@@ -181,19 +173,11 @@ def make_objective(
     analytical_levels: Dict[Tuple[str, str], int],
     analytical_dispatch: Dict[str, float],
 ):
-    """
-    Returns an optuna objective function closed over the simulation config.
-
-    The objective minimises total cost.
-    Fill rate below min_fill_rate is penalised heavily (soft constraint).
-    """
-
-    PENALTY_PER_PCT = 1_000_000   # cost added per 1% shortfall in fill rate
+    PENALTY_PER_PCT = 1_000_000   # cost penalty per 1% fill rate shortfall
 
     def objective(trial: optuna.Trial) -> float:
         params = {}
 
-        # ── inventory parameters ─────────────────────────────────────────
         if mode in ("inventory", "joint"):
             for (node_id, sku), S_anal in analytical_levels.items():
                 lo = max(S_MIN_ABS, int(S_anal * S_LOWER_MULT))
@@ -201,19 +185,16 @@ def make_objective(
                 key = f"S_{node_id}__{sku}"
                 params[key] = trial.suggest_int(key, lo, hi)
 
-        # ── transport parameters ─────────────────────────────────────────
         if mode in ("transport", "joint"):
             for route_id in analytical_dispatch:
                 key = f"D_{route_id}"
                 params[key] = trial.suggest_float(key, DISPATCH_LOWER, DISPATCH_UPPER)
 
-        # ── evaluate ─────────────────────────────────────────────────────
-        cfg_trial = _apply_params(base_cfg, params)
+        cfg_trial  = _apply_params(base_cfg, params)
         total_cost, fill_rate = evaluate(cfg_trial, volume_per_unit)
 
-        # ── soft fill rate constraint ─────────────────────────────────────
         shortfall = max(0.0, min_fill_rate - fill_rate)
-        penalty   = shortfall * 100 * PENALTY_PER_PCT   # shortfall is 0-1
+        penalty   = shortfall * 100 * PENALTY_PER_PCT
 
         trial.set_user_attr("fill_rate",  fill_rate)
         trial.set_user_attr("total_cost", total_cost)
@@ -229,62 +210,70 @@ def make_objective(
 # ============================================================
 
 def run_optimizer(
-    config_path: str,
+    config_path: Optional[str] = None,
     mode: str = "inventory",
     n_trials: int = 100,
     min_fill_rate: float = 0.92,
     n_jobs: int = 1,
     seed: int = 42,
     verbose: bool = True,
+    # --- programmatic use: pass pre-loaded config instead of path ---
+    base_cfg: Optional[dict] = None,
+    volume_per_unit: Optional[dict] = None,
 ) -> OptimizationResult:
     """
     Run the optimizer.
 
+    Supply either config_path (CLI use) or base_cfg + volume_per_unit
+    (programmatic use from run_experiments.py).
+
     Parameters
     ----------
-    config_path   : path to JSON config file
-    mode          : 'inventory' | 'transport' | 'joint'
-    n_trials      : number of optuna trials
-    min_fill_rate : minimum acceptable fill rate (soft constraint)
-    n_jobs        : parallel trials (-1 = all cores)
-    seed          : random seed for reproducibility
-    verbose       : print progress
-
-    Returns
-    -------
-    OptimizationResult with best params, cost, fill rate, and full study
+    config_path    : path to JSON config file (or None if base_cfg provided)
+    base_cfg       : pre-loaded config dict (alternative to config_path)
+    volume_per_unit: pre-computed volume map (required when base_cfg is used)
+    mode           : 'inventory' | 'transport' | 'joint'
+    n_trials       : number of optuna trials
+    min_fill_rate  : minimum acceptable fill rate (soft constraint)
+    n_jobs         : parallel trials (-1 = all cores)
+    seed           : random seed for reproducibility
+    verbose        : print progress
     """
 
     if mode not in ("inventory", "transport", "joint"):
         raise ValueError(f"mode must be 'inventory', 'transport', or 'joint'. Got: {mode}")
 
-    # ── load config ──────────────────────────────────────────────────────
-    with open(config_path) as f:
-        base_cfg = json.load(f)
+    # ── resolve config ────────────────────────────────────────────────────────
+    if base_cfg is None:
+        if config_path is None:
+            raise ValueError("Provide either config_path or base_cfg.")
+        with open(config_path) as f:
+            base_cfg = json.load(f)
+        volume_per_unit = build_volume_map(base_cfg)
+    else:
+        if volume_per_unit is None:
+            volume_per_unit = build_volume_map(base_cfg)
 
-    volume_per_unit      = build_volume_map(base_cfg)
-    analytical_levels    = _extract_base_stock_levels(base_cfg)
-    analytical_dispatch  = _extract_dispatch_thresholds(base_cfg)
+    analytical_levels   = _extract_base_stock_levels(base_cfg)
+    analytical_dispatch = _extract_dispatch_thresholds(base_cfg)
 
     if verbose:
         print("=" * 65)
         print("DDP Optimizer")
         print("=" * 65)
-        print(f"  Config       : {config_path}")
         print(f"  Mode         : {mode}")
         print(f"  Trials       : {n_trials}")
         print(f"  Min fill rate: {min_fill_rate*100:.1f}%")
         print(f"  SKUs         : {base_cfg['skus']}")
-        print(f"  Decision vars: ", end="")
         n_vars = 0
         if mode in ("inventory", "joint"):
             n_vars += len(analytical_levels)
         if mode in ("transport", "joint"):
             n_vars += len(analytical_dispatch)
-        print(n_vars)
+        print(f"  Decision vars: {n_vars}")
         print()
 
-    # ── baseline (analytical config as-is) ───────────────────────────────
+    # ── baseline ─────────────────────────────────────────────────────────────
     if verbose:
         print("Running baseline simulation...")
     baseline_cost, baseline_fill = evaluate(base_cfg, volume_per_unit)
@@ -293,9 +282,8 @@ def run_optimizer(
         print(f"  Baseline fill rate : {baseline_fill*100:.2f}%")
         print()
 
-    # ── optuna study ─────────────────────────────────────────────────────
+    # ── optuna study ─────────────────────────────────────────────────────────
     sampler = TPESampler(seed=seed)
-
     if not verbose:
         optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -325,8 +313,7 @@ def run_optimizer(
         show_progress_bar=verbose,
     )
 
-    # ── extract best feasible trial ──────────────────────────────────────
-    # Best trial = lowest total_cost among trials that met fill rate constraint
+    # ── best feasible trial ───────────────────────────────────────────────────
     feasible = [
         t for t in study.trials
         if t.user_attrs.get("fill_rate", 0) >= min_fill_rate
@@ -335,23 +322,23 @@ def run_optimizer(
     if feasible:
         best = min(feasible, key=lambda t: t.user_attrs["total_cost"])
     else:
-        # No feasible trial found — return best overall and warn
         best = study.best_trial
         if verbose:
-            print(f"\n⚠️  No trial met fill rate ≥ {min_fill_rate*100:.1f}%.")
-            print("   Returning best trial overall. Consider lowering min_fill_rate.")
+            print(f"\n⚠  No trial met fill rate ≥ {min_fill_rate*100:.1f}%.")
+            print("   Returning best overall. Consider lowering min_fill_rate.")
 
     best_cost      = best.user_attrs.get("total_cost", best.value)
     best_fill_rate = best.user_attrs.get("fill_rate",  0.0)
 
-    # ── print summary ─────────────────────────────────────────────────────
+    # ── print summary ─────────────────────────────────────────────────────────
     if verbose:
+        improvement = 100 * (baseline_cost - best_cost) / baseline_cost
+        direction   = "improvement" if improvement >= 0 else "increase"
+
         print("\n" + "=" * 65)
         print("Optimization complete")
         print("=" * 65)
         print(f"  Best trial         : #{best.number}")
-        improvement = 100*(baseline_cost - best_cost) / baseline_cost
-        direction   = "improvement" if improvement >= 0 else "increase"
         print(f"  Best total cost    : {best_cost:,.2f}  "
               f"({abs(improvement):.1f}% {direction} vs baseline)")
         print(f"  Best fill rate     : {best_fill_rate*100:.2f}%")
@@ -362,14 +349,13 @@ def run_optimizer(
         if mode in ("inventory", "joint"):
             print("Best base-stock levels:")
             skus = base_cfg["skus"]
-            # Print as a table: rows = nodes, cols = SKUs
             nodes_in_order = [
                 nd["id"] for nd in base_cfg["nodes"]
                 if not nd.get("infinite_supply", False)
             ]
-            header = f"  {'Node':<14}" + "".join(f"  {s:<12}" for s in skus)
+            header = f"  {'Node':<14}" + "".join(f"  {s:<20}" for s in skus)
             print(header)
-            print("  " + "-" * (14 + 14 * len(skus)))
+            print("  " + "-" * (14 + 22 * len(skus)))
             for nid in nodes_in_order:
                 row = f"  {nid:<14}"
                 for sku in skus:
@@ -379,7 +365,7 @@ def run_optimizer(
                         opt  = best.params[key]
                         row += f"  {opt:<6} (anal:{anal:<6})"
                     else:
-                        row += f"  {'—':<14}"
+                        row += f"  {'—':<20}"
                 print(row)
 
         if mode in ("transport", "joint"):
@@ -391,7 +377,6 @@ def run_optimizer(
                     print(f"  {e['from']:>12} → {e['to']:<12}  "
                           f"{best.params[key]*100:.1f}%  "
                           f"(was {analytical_dispatch[rid]*100:.1f}%)")
-
         print()
 
     return OptimizationResult(
@@ -412,21 +397,15 @@ def run_optimizer(
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Optimize inventory and/or transport policies for the DDP simulator."
+        description="Optimize inventory and/or transport policies."
     )
-    ap.add_argument("--config",        required=True,
-                    help="Path to JSON config file")
+    ap.add_argument("--config",        required=True)
     ap.add_argument("--mode",          default="inventory",
-                    choices=["inventory", "transport", "joint"],
-                    help="What to optimize (default: inventory)")
-    ap.add_argument("--trials",        type=int,   default=100,
-                    help="Number of optuna trials (default: 100)")
-    ap.add_argument("--min_fill_rate", type=float, default=0.92,
-                    help="Minimum fill rate constraint 0-1 (default: 0.92)")
-    ap.add_argument("--jobs",          type=int,   default=1,
-                    help="Parallel jobs, -1 = all cores (default: 1)")
-    ap.add_argument("--seed",          type=int,   default=42,
-                    help="Random seed (default: 42)")
+                    choices=["inventory", "transport", "joint"])
+    ap.add_argument("--trials",        type=int,   default=100)
+    ap.add_argument("--min_fill_rate", type=float, default=0.92)
+    ap.add_argument("--jobs",          type=int,   default=1)
+    ap.add_argument("--seed",          type=int,   default=42)
     ap.add_argument("--out",           default=None,
                     help="Save best params to this JSON file")
     args = ap.parse_args()

@@ -1,0 +1,15 @@
+Experiment : E1a — Financial Dispatch (25%)
+=======================================================
+Total cost        :   3,561,233.86
+  Holding         :      39,177.13  (1.1%)
+  Transport       :     318,429.00  (8.9%)
+  Ordering        :     222,669.08  (6.3%)
+  Shortage        :   2,980,958.65  (83.7%)
+Fill rate         :         30.12%
+
+Fill rate by SKU:
+  SKU_A         27.63%
+  SKU_B         32.19%
+  SKU_C         33.03%
+  SKU_D         31.84%
+  SKU_E         27.74%

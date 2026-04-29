@@ -94,7 +94,13 @@ class GreedyLoadPlanner:
     - Packs SKUs proportionally to their volume share.
     - Full vehicles first, then partial with tiered billing.
     - Always ships (carrier charges minimum quarter-load).
+    - Respects weight_capacity on TransportOption when weight_per_unit is set.
+      A shipment is split across multiple vehicles if it exceeds the weight cap.
     """
+
+    def __init__(self, weight_per_unit: Optional[Dict[str, float]] = None):
+        # sku -> kg per unit; used to enforce weight_capacity on TransportOption
+        self.weight_per_unit: Dict[str, float] = weight_per_unit or {}
 
     def plan_loads(
         self,
@@ -111,6 +117,22 @@ class GreedyLoadPlanner:
         total_volume = sum(quantities.values())
         if total_volume <= 0:
             return []
+
+        # Weight of the full shipment (0 if no weight data configured)
+        total_weight = sum(
+            qty * self.weight_per_unit.get(sku, 0.0)
+            for sku, qty in quantities.items()
+        )
+        W = option.weight_capacity  # None means no weight constraint
+
+        # Effective vehicle capacity: limited by whichever constraint binds first.
+        # If weight_capacity is set, scale the volume capacity down so that
+        # no single vehicle exceeds the weight limit.
+        if W is not None and W > 0 and total_weight > 0:
+            weight_per_vol = total_weight / total_volume
+            # max volume this vehicle can carry without breaching weight cap
+            vol_from_weight = W / weight_per_vol
+            C = min(C, vol_from_weight)
 
         # SKU volume proportions — fixed for all vehicles on this lane
         proportions = {
@@ -233,8 +255,9 @@ class TransportPlanner:
         load_planner: Optional[LoadPlanner] = None,
         mode_selector: Optional[ModeSelector] = None,
         allocator: Optional[CostAllocator] = None,
+        weight_per_unit: Optional[Dict[str, float]] = None,
     ):
-        self.load_planner = load_planner or GreedyLoadPlanner()
+        self.load_planner = load_planner or GreedyLoadPlanner(weight_per_unit=weight_per_unit)
         self.mode_selector = mode_selector or CheapestModeSelector()
         self.allocator = allocator or VolumeProportionalAllocator()
 
