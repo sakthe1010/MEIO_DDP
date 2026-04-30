@@ -1,0 +1,449 @@
+\chapter{Digital-Twin Architecture}
+\label{chap:architecture}
+
+This chapter describes the design and implementation of the discrete-event
+simulation framework that forms the computational core of the DDP.  Each
+section maps to one or more modules in the \texttt{engine/} package and
+explains the algorithmic choices made at that layer.
+
+%% -----------------------------------------------------------------------
+\section{Network Topology}
+\label{sec:arch:topology}
+
+The framework represents any supply-chain network as a \textbf{directed
+acyclic graph (DAG)}, implemented in \texttt{engine/network.py}.  Each
+\emph{node} in the graph corresponds to a stocking location (supplier,
+warehouse, or retailer) and each directed \emph{edge} to a transport lane
+between two locations.  Goods flow strictly downstream; returns and lateral
+transshipment are not modelled.
+
+The topology is entirely configurable: the number of echelons (chain depth)
+and the number of nodes at each echelon (chain breadth) are controlled by the
+JSON configuration file without any change to simulator code.  A single
+supplier feeding one warehouse and three retailers, a two-DC hub-and-spoke
+network, or a flat one-level distribution system are all expressible as DAG
+configurations.  Throughout this work, several topologies of varying size and
+depth were used; the specific configuration for each experiment is described
+in Chapter~\ref{chap:methodology}.
+
+Two further design choices are worth noting.  First, the supplier node carries
+an optional \texttt{infinite\_supply} flag: when set, the supplier can always
+fulfil any order placed by downstream nodes, representing an ideally reliable
+upstream source.  This assumption is convenient for isolating the behaviour
+of downstream inventory policies but is entirely optional — finite-capacity
+suppliers and supply disruptions are also supported
+(Section~\ref{sec:arch:disruptions}).  Second, the DAG structure enforces a
+strict material-flow direction, ensuring that cycle detection is trivial and
+the topological processing order (Section~\ref{sec:arch:des}) is unique.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox{0.65\textwidth}{\centering
+    \textit{[Figure: Example multi-echelon supply network — Supplier
+    $\to$ Warehouses W1, W2 $\to$ Retailers R1, R2, R3.
+    Arrows show downstream material flow; lead times labelled on each lane.]}}}
+  \caption{Example DAG topology: one supplier, two warehouses, and three
+           retailers.  The framework supports arbitrary depth and breadth;
+           this is one of several topologies used during development.}
+  \label{fig:topology}
+\end{figure}
+
+%% -----------------------------------------------------------------------
+\section{Discrete-Event Simulation Loop}
+\label{sec:arch:des}
+
+The simulator advances time in unit steps of one day.  Each day $t$ executes
+the following sequence of operations:
+
+\begin{enumerate}
+  \item \textbf{Receive shipments.}  For every node, any shipment whose
+        scheduled arrival time equals $t$ is removed from the pipeline and
+        added to on-hand inventory.
+  \item \textbf{Realise demand.}  Each retailer node draws its external demand
+        for day $t$ from the configured demand generator (deterministic,
+        Poisson, or CSV-driven).
+  \item \textbf{Clear external backlog.}  Any accumulated external demand that
+        could not be served on previous days is fulfilled from current on-hand
+        stock, up to availability.
+  \item \textbf{Process child orders.}  Internal orders from downstream nodes
+        are served from the parent's on-hand inventory; unmet orders enter the
+        parent's \emph{children backlog}.
+  \item \textbf{Place replenishment orders.}  Each non-supplier node queries its
+        inventory policy to determine an order quantity and registers an
+        \texttt{IncomingOrder} at its parent.
+  \item \textbf{Dispatch planning.}  For each edge, the transport module
+        inspects accumulated orders, builds vehicle loads respecting capacity
+        constraints, and schedules shipments with the configured lead time
+        (Section~\ref{sec:arch:transport}).
+  \item \textbf{Cost accumulation.}  Holding, shortage, ordering, and
+        transport costs for day $t$ are recorded.
+\end{enumerate}
+
+Nodes are processed in \emph{topological order} — retailers before warehouses,
+warehouse before the supplier — so that each node's child-order step is
+complete before its parent's dispatch step.  The topological sort is computed
+once at simulation startup (\texttt{Simulator.\_topological\_order}).
+
+The entry point is \texttt{Simulator.run(mode)}, implemented in
+\texttt{engine/simulator.py}.  When \texttt{mode="logs"} the simulator records
+full daily time-series; when \texttt{mode="summary"} only the aggregate KPI
+row is returned, which is sufficient for the optimisation inner loop.
+
+\subsection{Pseudocode}
+
+Algorithm~\ref{alg:simloop} summarises one daily tick.
+
+\begin{algorithm}
+\caption{Daily simulation tick at time $t$}
+\label{alg:simloop}
+\begin{algorithmic}[1]
+\For{each node $n$ in topological order}
+  \State $n.\text{receive\_shipments}(t)$
+  \If{$n$ is a retailer}
+    \State demand $\leftarrow$ demandGenerator$[n].\text{get}(t)$
+    \State $n.\text{process\_external\_demand}(\text{demand}, t)$
+  \EndIf
+  \State $n.\text{clear\_external\_backlog}()$
+  \State $n.\text{process\_child\_orders}(t)$
+\EndFor
+\For{each non-supplier node $n$ in topological order}
+  \State $q \leftarrow n.\text{policy}.\text{order\_qty}(
+         \text{on\_hand}, \text{backlog}, \text{pipeline\_in}, t)$
+         \Comment{$q$: order quantity in units}
+  \State $n.\text{parent}.\text{add\_inbound\_order}(n, q, t)$
+\EndFor
+\For{each edge $e$ in the network}
+  \State loads $\leftarrow$ GreedyLoadPlanner$.\text{plan}(e.\text{pending\_orders})$
+  \For{each load $\ell$ in loads}
+    \State schedule shipment arrival at $t + e.\text{lead\_time}$
+    \State accumulateCost$(e, \ell)$
+  \EndFor
+\EndFor
+\State accumulateCost$(t)$ \Comment{holding and shortage}
+\end{algorithmic}
+\end{algorithm}
+
+%% -----------------------------------------------------------------------
+\section{Node State Model}
+\label{sec:arch:node}
+
+Each node in the network maintains the following per-SKU state variables,
+implemented as dictionaries keyed by SKU identifier in \texttt{engine/node.py}:
+
+\begin{description}
+  \item[\texttt{on\_hand}] Current physical stock available for dispatch or
+        external fulfilment.
+  \item[\texttt{pipeline\_in}] A list of \texttt{Shipment} objects, each
+        carrying a quantity and a scheduled arrival day.  The total pipeline
+        quantity is the sum of all in-transit units.
+  \item[\texttt{backlog\_external}] Unfulfilled external demand accumulated
+        over previous days; cleared before new demand is processed on each
+        tick.
+  \item[\texttt{backlog\_children}] A dictionary keyed by \texttt{(child\_id,
+        sku)} recording how many units the parent owes to each downstream
+        child.
+  \item[\texttt{inbound\_orders\_queue}] Orders submitted by children that
+        have not yet been dispatched.
+  \item[\texttt{placed\_orders}] Historical record of orders placed by this
+        node; used to compute the bullwhip ratio.
+\end{description}
+
+The two backlog dictionaries encode the dual role of intermediate nodes:
+they both \emph{sell} to their children (backlog\_children) and
+\emph{buy} from their parent (backlog\_external records their own unmet need).
+
+\subsection{Helper methods}
+
+\texttt{Node.total\_pipeline\_in(sku)} returns the scalar sum over all
+in-transit shipments for a given SKU, which is the quantity passed to the
+inventory policy as \texttt{pipeline\_in}.
+
+\texttt{Node.total\_backlog\_children(sku)} aggregates children-owed
+quantities across all child nodes, used by the echelon-stock calculation
+(Section~\ref{sec:policies:echelon}).
+
+%% -----------------------------------------------------------------------
+\section{Transport Layer}
+\label{sec:arch:transport}
+
+Transport between nodes is modelled at the \emph{vehicle load} level rather
+than at the individual unit level.  The transport layer is implemented in
+\texttt{engine/transport.py} and consists of three collaborating types.
+
+A key design feature is that a single lane (edge) between two nodes can carry
+\textbf{multiple transport options} simultaneously — one per available mode.
+For example, a warehouse-to-retailer lane might offer both a truck option
+(high capacity, 1-day lead time) and a rail option (higher capacity, 3-day
+lead time, lower cost per vehicle).  This directly mirrors real-world
+logistics, where two locations are often served by more than one carrier type,
+each with its own cost structure and transit time.  Multiple options are
+declared by listing several edge entries with the same \texttt{from}/\texttt{to}
+pair in the config's \texttt{edges} array, each with a distinct \texttt{mode}
+integer.
+
+\subsection{TransportOption}
+
+A \texttt{TransportOption} specifies the physical and economic properties of
+one transport mode on a lane:
+
+\begin{itemize}
+  \item \textbf{mode} — a string label (e.g.\ \texttt{"truck"}, \texttt{"rail"}).
+  \item \textbf{capacity} — maximum volume (in cubic metres) per vehicle.
+  \item \textbf{weight\_capacity} — maximum gross weight (kg) per vehicle;
+        \texttt{None} means no weight constraint.
+  \item \textbf{cost\_full / cost\_half / cost\_quarter} — tiered cost
+        schedule: a full load costs \texttt{cost\_full}, a load between 50\%
+        and 100\% utilisation costs \texttt{cost\_half}, and a load below 50\%
+        costs \texttt{cost\_quarter}.
+  \item \textbf{lead\_time} — deterministic transit days (stochastic lead times
+        are a planned extension).
+  \item \textbf{min\_dispatch\_utilization} — minimum fraction of capacity
+        that must be filled before a vehicle is released.  A value of 0 means
+        dispatch on any positive load; a value of 0.8 means the planner
+        waits until 80\% of capacity is committed.
+\end{itemize}
+
+When multiple \texttt{TransportOption}s exist on a lane, the framework's
+default \textbf{mode selector} sorts them by their \texttt{mode} integer
+(1~=~primary, 2~=~secondary, \ldots) and dispatches all cargo via the
+lowest-numbered option, with higher-numbered modes serving as fallbacks.
+In addition, the optional \texttt{share} field on an edge enables
+\emph{weighted random sampling} of lead times across options — for example,
+assigning \texttt{share: 0.8} to a truck route and \texttt{share: 0.2} to
+a rail route means 80\% of dispatch events use the truck lead time and 20\%
+use the rail lead time, directly modelling realistic carrier variability for
+multi-route logistics corridors without splitting individual vehicle loads.
+
+\subsection{GreedyLoadPlanner}
+
+The \texttt{GreedyLoadPlanner} is the load-packing algorithm used in all
+experiments in this work.  It is the default implementation of the
+\texttt{LoadPlanner} protocol.  Given a list of pending order lines for a
+lane, it greedily packs items into vehicles one at a time, subject to dual
+constraints:
+
+\begin{enumerate}
+  \item \textbf{Volume constraint:} total volume of packed items
+        $\leq$ \texttt{capacity}.
+  \item \textbf{Weight constraint:} total weight of packed items
+        $\leq$ \texttt{weight\_capacity} (when set).
+\end{enumerate}
+
+If weight capacity is tighter than volume capacity for the current mix of SKUs,
+the effective capacity is scaled down accordingly before packing begins.  After
+packing, if the resulting utilisation is below \texttt{min\_dispatch\_utilization},
+the load is \emph{held} for up to \texttt{max\_dispatch\_wait} days; once the
+wait limit is reached the load is dispatched regardless of fill level to prevent
+indefinite stockouts at downstream nodes.
+
+The tiered cost is evaluated after packing: loads $\geq 50\%$ full pay the
+half-load rate, loads $\geq 100\%$ (i.e.\ exactly full) pay the full-load rate.
+This incentivises consolidation but never blocks dispatch beyond the wait limit.
+
+\subsection{Pluggable protocols}
+
+The transport layer is designed around three narrow protocols, making all
+three components fully \textbf{plug-and-play}:
+
+\begin{description}
+  \item[\texttt{LoadPlanner}] Decides how pending orders are packed into
+        vehicle loads.  \texttt{GreedyLoadPlanner} is the default used in
+        this work; alternatives (bin-packing, probabilistic packing) can be
+        substituted by implementing the same two-method interface.
+  \item[\texttt{ModeSelector}] Chooses which transport option(s) to activate
+        when multiple options exist on a lane.  The default
+        \texttt{CheapestModeSelector} always picks the primary mode
+        (lowest \texttt{mode} integer); a custom selector could split loads
+        across modes or apply routing rules.
+  \item[\texttt{CostAllocator}] Distributes a vehicle's total cost across the
+        SKUs it carries.  The default allocates cost proportionally by volume.
+\end{description}
+
+No changes to the simulator core (\texttt{engine/simulator.py}) are required
+to swap any of these components — they are injected at construction time,
+making the transport layer independently extensible.
+
+%% -----------------------------------------------------------------------
+\section{Cost Model}
+\label{sec:arch:cost}
+
+The total cost accumulated over the simulation horizon $T$ is:
+
+\begin{equation}
+  C_{\text{total}} = C_{\text{hold}} + C_{\text{transport}}
+                   + C_{\text{order}} + C_{\text{shortage}}
+  \label{eq:total_cost}
+\end{equation}
+
+Each component is defined as follows.
+
+\paragraph{Holding cost.}
+$C_{\text{hold}} = \sum_{t=w}^{T} \sum_{n} \sum_{s}
+  h_{n,s} \cdot \text{on\_hand}_{n,s,t}$,
+where $h_{n,s}$ is the per-unit-per-day holding cost for SKU $s$ at node $n$
+and $w$ is the warm-up cutoff.
+
+\paragraph{Shortage (backlog) cost.}
+$C_{\text{shortage}} = \sum_{t=w}^{T} \sum_{n} \sum_{s}
+  p_{n,s} \cdot \text{backlog\_external}_{n,s,t}$,
+where $p_{n,s}$ is the per-unit-per-day penalty cost.
+
+\paragraph{Ordering cost.}
+Each order placed by a node incurs a fixed setup cost $K_n$ plus a
+per-unit variable cost $c_{n,s}$:
+$C_{\text{order}} = \sum_{\text{orders}} (K_n + c_{n,s} \cdot q)$,
+where $q$ is the order quantity in units.
+
+\paragraph{Transport cost.}
+Each dispatched vehicle load on edge $e$ with utilisation $u$ incurs
+a tiered cost: $\text{cost\_full}$ if $u = 1$, $\text{cost\_half}$ if
+$0.5 \leq u < 1$, and $\text{cost\_quarter}$ if $u < 0.5$.
+
+All four components are accumulated on every tick inside
+\texttt{Simulator.run} and the first $w$ days are excluded from reported
+KPIs to avoid contamination by the initial-inventory transient
+(Section~\ref{sec:meth:warmup}).
+
+%% -----------------------------------------------------------------------
+\section{Configuration Schema}
+\label{sec:arch:config}
+
+Scenarios are specified as JSON files.  The top-level keys are:
+
+\begin{description}
+  \item[\texttt{seed}] Integer random seed for reproducibility.
+  \item[\texttt{time\_horizon}] Number of simulation days.
+  \item[\texttt{skus}] List of SKU identifiers.
+  \item[\texttt{sku\_properties}] Per-SKU \texttt{volume\_per\_unit} and
+        \texttt{weight\_per\_unit}.
+  \item[\texttt{nodes}] List of node objects specifying type
+        (\texttt{supplier}/\texttt{warehouse}/\texttt{retailer}),
+        initial inventory, cost parameters, and per-SKU policy
+        configuration.
+  \item[\texttt{edges}] List of edge objects specifying from/to nodes and
+        a list of \texttt{TransportOption} specifications.
+  \item[\texttt{disruptions}] (Optional) List of supply disruption events;
+        each event specifies a node, a start day, and a duration.
+\end{description}
+
+The \texttt{engine/config\_validator.py} module validates all required fields
+and raises descriptive errors before the simulation starts, preventing
+silent misconfiguration during long experiment runs.
+
+Randomness in the framework arises from two sources: (i)~stochastic demand
+generators — for example, Poisson-distributed daily demand draws a fresh
+random variate each day — and (ii)~the Optuna TPE optimiser, which uses
+probabilistic surrogate models and random sampling to explore the parameter
+space.  The \texttt{seed} value initialises Python's \texttt{random} module
+and NumPy's RNG at simulation startup, ensuring that both demand sequences
+and optimiser trial sequences are exactly reproducible across runs.  CSV-driven
+demand (used in all main experiments of this work) is fully deterministic and
+unaffected by the seed; the seed matters primarily when using Poisson or
+other synthetic demand modes and when running the optimiser.
+
+%% -----------------------------------------------------------------------
+\section{CSV Input Pipeline}
+\label{sec:arch:csv}
+
+To lower the barrier for practitioners who are not comfortable editing JSON
+directly, a secondary input method was developed using six CSV files.  The
+builder script \texttt{inputs/scripts/build\_config\_from\_csv.py} reads and
+validates all six files and emits a complete JSON configuration that can then
+be passed to any simulation script.
+
+Table~\ref{tab:csv-files} lists the six files and their purposes.
+
+\begin{table}[htbp]
+  \centering
+  \caption{CSV input files and their roles in the configuration pipeline.}
+  \label{tab:csv-files}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    File & Contents \\
+    \midrule
+    \texttt{sim\_config.csv}    & Global parameters: seed, horizon, warm-up, strategy \\
+    \texttt{products.csv}       & SKU physical properties: volume and unit cost \\
+    \texttt{nodes.csv}          & One row per node — type, inventory, cost parameters \\
+    \texttt{policies.csv}       & Long-format policy parameters (one row per parameter) \\
+    \texttt{routes.csv}         & Transport lanes: capacity, tiered costs, lead time \\
+    \texttt{demand\_config.csv} & Maps each retailer to its demand CSV \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Per-retailer daily demand is read from CSV files in \texttt{inputs/demand\_data/},
+derived from the M5 Walmart Forecasting dataset.
+
+%% -----------------------------------------------------------------------
+\section{Supply Disruption Modelling}
+\label{sec:arch:disruptions}
+
+Supply disruptions are modelled by temporarily blocking a node from
+receiving or dispatching stock for a specified interval $[t_s, t_s+d)$.
+During a disruption, orders placed by downstream nodes accumulate in the
+\texttt{backlog\_children} dictionary of the affected node.  When the node
+recovers at day $t_s + d$, it resumes normal order fulfilment and works
+through the accumulated backlog.
+
+Disruptions are declared in the \texttt{disruptions} list of the config JSON.
+Multiple, non-overlapping disruption events can be specified per node.  The
+disruption model is deliberately simple — it does not include rerouting or
+mode switching — making it straightforward to extend.
+
+%% -----------------------------------------------------------------------
+\section{Iterative Framework Evolution}
+\label{sec:arch:evolution}
+
+The simulator was built and validated incrementally across three phases.
+
+\textbf{Phase 1 — Prototype and validation.}
+The foundation of the framework was built as a single-SKU discrete-event
+engine and tested across several small topologies: 1-1-1, 1-1-2, 1-2-3,
+and other configurations.  Both synthetic demand profiles (constant demand
+and Poisson-distributed daily draws) and real M5 Walmart CSV demand were
+used as inputs.  The goal was to ensure that all core modules — the
+daily-tick loop, shipment pipeline, backlog propagation, and policy
+interface — behave correctly and agree with theoretical expectations.
+This included verifying lead-time mechanics (shipments placed on day $t$
+arrive on day $t+L$ with the correct quantity) alongside all other
+invariants.  Four controlled validation experiments (EV1--EV4,
+Chapter~\ref{chap:methodology}) formalised this verification before any
+additional complexity was introduced.
+
+\textbf{Phase 2 — Transport layer, CSV pipeline, and scale-up.}
+The most significant architectural addition in this phase was the
+\textbf{transport layer}: vehicle-capacity constraints (simultaneous volume
+and weight limits), tiered cost schedules (full-, half-, and quarter-load
+rates), configurable minimum-dispatch-utilisation thresholds, and a
+maximum-dispatch-wait timeout to prevent indefinite consolidation delays.
+This transformed the simulator from a pure inventory tool into a joint
+inventory-transport digital twin.  A \textbf{CSV input pipeline} was also
+introduced, providing a spreadsheet-friendly alternative to hand-editing
+JSON configurations.  Concurrently, the network was extended to multi-SKU
+scenarios, the policy library grew from two implementations (base-stock,
+$(s,S)$) to seven, and multi-seed validation and bullwhip metrics were
+instrumented.
+
+\textbf{Phase 3 — Optimisation integration.}
+The Optuna-TPE optimiser was integrated and the main experiments (E0--E4)
+were designed and executed.  The joint optimiser searches inventory
+base-stock levels and transport dispatch thresholds simultaneously — a
+search structure only made meaningful by the transport layer built in
+Phase~2.  Full details of the optimisation framework are given in
+Chapter~\ref{chap:optimization}.
+
+This incremental approach ensured each layer was tested in isolation before
+the next layer of complexity was added, keeping the test suite tractable at
+every stage.
+
+\paragraph{Test suite.}
+Throughout all three phases, a growing \texttt{pytest} suite was maintained
+to guard the correctness of core mechanics.  Tests cover simulator invariants
+(pipeline quantity conservation, backlog non-negativity, cost accumulation
+bounds), policy behaviour under edge cases (zero demand, large backlogs,
+review-day alignment), and transport layer mechanics (dual-constraint
+packing, cost-tier selection, dispatch-wait timeout logic).  Running
+\texttt{python -m pytest tests/ -q} before each new phase confirmed that
+foundational logic remained intact as the framework grew in complexity,
+and the suite continues to serve as a regression guard for future
+extensions.

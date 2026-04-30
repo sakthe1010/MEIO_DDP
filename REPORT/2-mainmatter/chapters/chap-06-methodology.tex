@@ -1,0 +1,258 @@
+\chapter{Experimental Methodology}
+\label{chap:methodology}
+
+This chapter describes the experimental design, datasets, and evaluation
+methodology used in this DDP.  The experiments are organised into two
+groups: four preliminary validation experiments (EV1--EV4) conducted on
+a simplified single-SKU topology, and six main optimisation experiments
+(E0--E4) on the full 5-SKU 1N3 network.
+
+%% -----------------------------------------------------------------------
+\section{Preliminary Validation Experiments (EV1--EV4)}
+\label{sec:meth:ev}
+
+Before running the main optimisation suite, four controlled experiments
+were designed to verify that the simulator correctly reproduces known
+theoretical behaviour.  These experiments used a simplified \textbf{single-SKU,
+2-warehouse $\times$ 3-retailer} topology and real M5 Walmart demand data.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Preliminary validation experiments: scope and purpose.}
+  \label{tab:ev-overview}
+  \begin{tabular}{@{}llp{7cm}@{}}
+    \toprule
+    ID & Title & Purpose \\
+    \midrule
+    EV1 & Constant-demand convergence &
+          Verify that base-stock policy drives on-hand inventory to the
+          target level under deterministic constant demand. \\[4pt]
+    EV2 & Demand shock response &
+          Verify that a one-time spike propagates upstream with pipeline
+          delay and amplification. \\[4pt]
+    EV3 & Policy comparison under transport capacity &
+          Compare base-stock vs $(s,S)$ with and without vehicle capacity
+          limits; confirm batching effect. \\[4pt]
+    EV4 & Capacity scaling on M5 data &
+          Quantify the non-linear cost--service trade-off as transport
+          capacity is scaled from 0.25$\times$ to 4$\times$ baseline. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{EV1 --- Constant-demand convergence}
+\label{sec:meth:ev1}
+
+A constant daily demand of $d$ units is applied to all retailers over
+a 100-day horizon.  Each node runs a base-stock policy with
+$S = d(L+1)$ where $L$ is the lead time from its parent.  The test
+confirms that on-hand inventory at each node converges to and stays at
+$S - d \cdot L$ (the equilibrium on-hand level) within $L+1$ days.
+
+\subsection{EV2 --- Demand shock response}
+\label{sec:meth:ev2}
+
+A synthetic demand series with constant background demand $d$ and a
+single large spike at day 20 is read from \texttt{inputs/demand\_shock.csv}.
+The experiment verifies that the upstream nodes observe an amplified order
+spike with a delay matching the cumulative pipeline lead time.
+
+\subsection{EV3 --- Policy comparison under transport capacity}
+\label{sec:meth:ev3}
+
+Two policies (base-stock and $(s,S)$) are compared on the single-SKU
+topology with and without a finite vehicle capacity.  With no capacity
+limit both policies track demand similarly.  With capacity limits, the
+$(s,S)$ fixed-quantity orders align better with vehicle loads.
+
+\subsection{EV4 --- Capacity scaling}
+\label{sec:meth:ev4}
+
+Vehicle capacity is scaled by multipliers $\{0.25, 0.5, 1.0, 2.0, 4.0\}$
+relative to a baseline calibrated to carry one week of average demand.
+M5 Walmart demand data is used for realism.  Results appear in
+Table~\ref{tab:ev4} (Section~\ref{sec:results:ev4}).
+
+%% -----------------------------------------------------------------------
+\section{Dataset: M5 Walmart Forecasting Data}
+\label{sec:meth:dataset}
+
+The demand data for all experiments is derived from the
+\textbf{M5 Walmart Forecasting dataset} \citep{MakridakisEtAl2020}.
+The M5 dataset contains daily unit sales for thousands of products across
+ten Walmart stores in the United States, spanning approximately five years.
+
+The M5 dataset was selected because it exhibits realistic retail demand
+characteristics that stress inventory policies beyond what synthetic
+Poisson processes can capture:
+\begin{itemize}
+  \item \textbf{Intermittency and spikes.} Sales often cluster around
+        promotional events and holidays, creating irregular demand patterns.
+  \item \textbf{Weak weekly seasonality.} Weekend peaks and weekday troughs
+        introduce low-frequency variation.
+  \item \textbf{Long tails.} Occasional large orders produce high
+        coefficient-of-variation values that challenge base-stock stability.
+\end{itemize}
+
+Per-retailer daily demand CSVs (\texttt{inputs/demand\_data/R1.csv},
+\texttt{R2.csv}, \texttt{R3.csv}) were derived by selecting one M5
+series per retailer per SKU, filtering to a 365-day window, and reindexing
+to a zero-based day index.  For the preliminary validation experiments,
+a separate synthetic series (\texttt{demand\_shock.csv}) with a single
+spike at day 20 was constructed.
+
+%% -----------------------------------------------------------------------
+\section{Main Experiment Configuration}
+\label{sec:meth:config}
+
+All main experiments (E0--E4) use the configuration file
+\texttt{config/1n3\_5sku.json} with the following parameters:
+
+\begin{table}[htbp]
+  \centering
+  \caption{Main experiment simulation parameters.}
+  \label{tab:sim-params}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Parameter & Value \\
+    \midrule
+    Network topology & 1 supplier, 1 warehouse (W1), 3 retailers (R1--R3) \\
+    SKUs & 5 (SKU\_A through SKU\_E) \\
+    Simulation horizon & 365 days \\
+    Warm-up period & 30 days (excluded from KPIs) \\
+    Demand type & CSV-driven (M5 Walmart, retailer-specific) \\
+    Lead times & Deterministic (supplier$\to$W1: 2d; W1$\to$Ri: 1d) \\
+    Fill-rate target & $\geq$ 92\% (soft constraint, experiments E1b--E3) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+SKU physical properties span a range of volumes (0.002--0.008 m$^3$/unit)
+and weights (0.5--1.2 kg/unit), so the GreedyLoadPlanner's dual
+volume-and-weight capacity constraint is active for some SKU mixes.
+
+%% -----------------------------------------------------------------------
+\section{Warm-Up Exclusion}
+\label{sec:meth:warmup}
+
+At simulation start, all nodes are initialised with a configurable amount
+of stock.  This initial stock creates a transient period during which
+KPIs reflect the initialisation state rather than the steady-state
+behaviour of the policy.  To avoid this bias, the first 30 days of each
+simulation run are \emph{excluded} from all reported KPIs (costs, fill
+rates, bullwhip ratios).
+
+Warm-up exclusion is enforced by passing the \texttt{--warmup 30} flag
+to all experiment scripts.  The warm-up period was chosen to be
+$\geq 2 \times L_{\max}$, where $L_{\max} = 2$ days is the maximum
+lead time in the network, ensuring that initial inventory effects have
+dissipated before measurement begins.
+
+%% -----------------------------------------------------------------------
+\section{Multi-Seed Statistical Validation}
+\label{sec:meth:multiseed}
+
+To quantify the sensitivity of results to the random seed (which affects
+stochastic demand realisations and TPE search paths), the framework
+provides \texttt{scripts/multi\_seed\_validation.py}.  This script:
+
+\begin{enumerate}
+  \item Runs the simulation with the specified policy parameters across
+        $N$ independently seeded runs (default $N = 10$).
+  \item Reports the 95\% confidence interval on total cost and fill rate
+        using the normal approximation.
+  \item Compares two configurations (e.g.\ E0 vs E3) using a
+        Welch two-sample $t$-test to assess whether the observed
+        cost difference is statistically significant.
+\end{enumerate}
+
+Because the main experiments use a fixed deterministic demand CSV,
+cross-seed variance in cost is primarily driven by the optimiser's
+stochastic search path rather than demand variability.  Multi-seed
+validation is most informative when used with Poisson demand generators.
+
+%% -----------------------------------------------------------------------
+\section{Bullwhip Metric}
+\label{sec:meth:bullwhip}
+
+The bullwhip ratio is the ratio of the order coefficient-of-variation
+squared to the demand coefficient-of-variation squared:
+
+\begin{equation}
+  \text{BW}_{n,s} = \frac{\text{CV}^2(\text{orders}_{n,s})}
+                         {\text{CV}^2(\text{demand}_{n,s})}
+  \label{eq:bullwhip}
+\end{equation}
+
+A ratio greater than one at node $n$ indicates that orders placed by $n$
+are \emph{more} variable than the demand $n$ faces, i.e.\ amplification
+is occurring.  The metric is computed on the post-warm-up window only,
+using the daily order logs stored in \texttt{orders\_log.csv}.
+
+For retailers, the denominator is the external customer demand; for the
+warehouse and supplier, the denominator is the aggregate demand from
+their children (which is itself the retailers' orders).
+
+%% -----------------------------------------------------------------------
+\section{Main Optimisation Experiments E0--E4}
+\label{sec:meth:main}
+
+The six main experiments are summarised in Table~\ref{tab:exp-overview}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Main optimisation experiments: design and hypothesis.}
+  \label{tab:exp-overview}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{@{}llp{7cm}@{}}
+    \toprule
+    ID & Title & Hypothesis \\
+    \midrule
+    E0 & Analytical baseline &
+         Newsvendor stock levels + zero dispatch thresholds will produce
+         a high transport cost and sub-92\% fill rate. \\[4pt]
+    E1a & Fixed 25\% dispatch threshold &
+          Imposing a uniform consolidation constraint without adjusting
+          inventory will reduce transport cost but collapse fill rate. \\[4pt]
+    E1b & Transport-only optimisation &
+          Optimising dispatch thresholds alone (inventory fixed at E0)
+          will achieve modest cost reduction but cannot reach 92\% fill. \\[4pt]
+    E2 & Inventory-only optimisation &
+         Optimising stock levels alone (thresholds fixed at 0) will
+         achieve 92\% fill but increase total cost. \\[4pt]
+    E3 & \textbf{Joint optimisation (main result)} &
+         Simultaneous optimisation of inventory and transport will
+         achieve the lowest cost at $\geq$92\% fill. \\[4pt]
+    E4 & Pareto frontier &
+         The cost--service trade-off exhibits diminishing returns: each
+         percentage point of fill rate above 95\% costs substantially more. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+All experiments except E0 use the Optuna-TPE optimiser described in
+Chapter~\ref{chap:optimization}.  Experiment E0 uses analytically derived
+parameters and requires no optimisation.  All experiments share the same
+simulator configuration, demand data, and warm-up window to enable fair
+comparison.
+
+%% -----------------------------------------------------------------------
+\section{Reproducibility}
+\label{sec:meth:reproducibility}
+
+Each experiment run generates a self-contained output directory at
+\texttt{outputs/experiments\_\textlangle ts\textrangle /}, containing:
+
+\begin{itemize}
+  \item \texttt{params.json} — the exact policy parameters used.
+  \item \texttt{summary.txt} — total cost, cost breakdown, fill rates,
+        and bullwhip ratios in human-readable form.
+  \item CSV logs: \texttt{inventory\_log.csv}, \texttt{orders\_log.csv},
+        \texttt{costs\_by\_node\_sku.csv}, \texttt{kpis\_by\_sku.csv},
+        \texttt{bullwhip.csv}, \texttt{shipments\_log.csv}.
+  \item PNG plots: cost breakdown, fill rate, inventory time-series,
+        order time-series, bullwhip, and Pareto frontier.
+\end{itemize}
+
+The CLI commands to reproduce all results are given in
+Appendix~\ref{appn:reproduction}.

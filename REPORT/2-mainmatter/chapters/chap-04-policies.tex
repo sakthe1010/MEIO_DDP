@@ -1,0 +1,248 @@
+\chapter{Inventory Policies}
+\label{chap:policies}
+
+Seven inventory control policies are implemented in the \texttt{policies/}
+package.  They share a common Python interface and cover the major families
+found in the MEIO literature, from continuous-review analytical policies to
+periodic-review heuristics and the echelon-optimal Clark-Scarf policy.
+
+%% -----------------------------------------------------------------------
+\section{Common API}
+\label{sec:policies:api}
+
+Every policy exposes a single method:
+
+\begin{lstlisting}[language=Python, caption={Universal policy interface.}]
+def order_qty(
+    self,
+    on_hand: int,
+    backlog_external: int,
+    backlog_children: int,
+    pipeline_in: int,
+    t: Optional[int] = None,
+) -> int:
+    ...
+\end{lstlisting}
+
+The \texttt{t} argument is the current simulation day.  Periodic policies
+inspect \texttt{t} to determine whether a review is due; continuous-review
+policies ignore it.  Passing \texttt{t=None} causes periodic policies to
+act as if a review is due, which is the convention used during warm-up.
+
+The \emph{inventory position} (IP) used in most policies is:
+
+\begin{equation}
+  \text{IP} = \text{on\_hand} - \text{backlog\_external}
+             + \text{pipeline\_in}
+  \label{eq:ip}
+\end{equation}
+
+Orders are always non-negative; over-stocking is never triggered.
+
+%% -----------------------------------------------------------------------
+\section{Base-Stock Policy}
+\label{sec:policies:bs}
+
+\textbf{Implementation:} \texttt{policies/base\_stock.py}
+
+The base-stock (order-up-to) policy is the single-parameter benchmark
+derived from newsvendor theory.  On every period, the order quantity is:
+
+\begin{equation}
+  q = \max\!\bigl(0,\; S - \text{IP}\bigr)
+  \label{eq:basestock}
+\end{equation}
+
+where $S$ is the \emph{base-stock level}.  The optimal $S$ under Gaussian
+demand with mean $\mu$ and standard deviation $\sigma$ over a lead time $L$
+is the newsvendor quantile:
+
+\begin{equation}
+  S^* = \mu(L+1) + z_\alpha \,\sigma\sqrt{L+1}
+  \label{eq:newsvendor}
+\end{equation}
+
+where $z_\alpha$ is the standard-normal quantile corresponding to the
+target fill rate $\alpha$ (e.g.\ $z_{0.92} \approx 1.41$).  This formula
+is used to initialise the analytical baseline in experiment E0.
+
+The base-stock policy is \emph{optimal for single-echelon, uncapacitated,
+backlog models} but does not account for transport capacity, vehicle
+consolidation, or order batching.
+
+%% -----------------------------------------------------------------------
+\section{Reorder-Point Family: $(s,S)$ and $(R,Q)$}
+\label{sec:policies:sS}
+
+\textbf{Implementations:} \texttt{policies/ss\_policy.py},
+\texttt{policies/rq\_policy.py}
+
+\subsection{$(s,S)$ policy}
+
+The $(s,S)$ policy is a continuous-review policy with two parameters:
+a reorder point $s$ and an order-up-to level $S > s$.  An order is
+placed only when the inventory position falls at or below $s$:
+
+\begin{equation}
+  q =
+  \begin{cases}
+    S - \text{IP} & \text{if } \text{IP} \leq s \\
+    0             & \text{otherwise}
+  \end{cases}
+\end{equation}
+
+Unlike the base-stock policy, $(s,S)$ batches demand between review events,
+which naturally aligns order sizes with vehicle loads.  This batching
+behaviour was one motivation for including it alongside base-stock in the
+preliminary validation experiments (Section~\ref{sec:meth:ev3}).
+
+\subsection{$(R,Q)$ policy}
+
+The $(R,Q)$ (reorder-point, fixed-quantity) policy places a fixed
+order of size $Q$ whenever the inventory position drops to or below the
+reorder point $R$:
+
+\begin{equation}
+  q =
+  \begin{cases}
+    Q & \text{if } \text{IP} \leq R \\
+    0 & \text{otherwise}
+  \end{cases}
+\end{equation}
+
+Because $Q$ is fixed, orders are always the same size — well-suited to
+lanes with a fixed vehicle capacity.
+
+%% -----------------------------------------------------------------------
+\section{Periodic-Review: $(R,S)$ and Order-Up-To with Phase Offset}
+\label{sec:policies:rs}
+
+\textbf{Implementations:} \texttt{policies/order\_up\_to.py},
+\texttt{policies/periodic\_review.py}
+
+\subsection{$(R,S)$ periodic-review policy}
+
+The \texttt{PeriodicReviewPolicy} checks inventory every $R$ days and
+orders up to level $S$:
+
+\begin{equation}
+  q =
+  \begin{cases}
+    \max(0, S - \text{IP}) & \text{if } t \bmod R = 0 \\
+    0                      & \text{otherwise}
+  \end{cases}
+\end{equation}
+
+Between reviews, no order is placed regardless of the inventory position.
+The periodic structure reduces ordering overhead and can be co-ordinated
+across nodes to smooth vehicle utilisation.
+
+\subsection{Order-up-to with phase offset}
+
+The \texttt{OrderUpToPolicy} generalises the above by allowing a
+\texttt{phase\_offset}: reviews occur when $(t - \text{phase\_offset}) \bmod R = 0$.
+This lets different nodes review on staggered days, spreading transport
+demand across the week and improving consolidation opportunities.
+
+Optional \texttt{k} and \texttt{m} parameters further restrict the
+maximum number of orders ($k$) within a sliding window of $m$ days,
+combining periodic review with a $(k,m)$-cycle cap.
+
+%% -----------------------------------------------------------------------
+\section{Cyclic Policy: $(k,m)$-Cycle Scheduling}
+\label{sec:policies:km}
+
+\textbf{Implementation:} \texttt{policies/km\_cycle.py}
+
+The \texttt{KmCyclePolicy} schedules at most $k$ replenishment orders per
+$m$-day cycle, at pre-specified intra-cycle offsets:
+
+\begin{equation}
+  q =
+  \begin{cases}
+    \max(0, S - \text{IP}) & \text{if } t \bmod m \in \texttt{review\_offsets}
+                             \text{ and orders this cycle} < k \\
+    0                      & \text{otherwise}
+  \end{cases}
+\end{equation}
+
+For example, with $m = 7$ and \texttt{review\_offsets} $= \{0, 3\}$, the
+policy reviews on Monday and Thursday of each week.  This structure
+is designed to be \emph{consolidation-friendly}: if the warehouse always
+orders on fixed days, the supplier can prepare full truck loads in advance.
+
+%% -----------------------------------------------------------------------
+\section{Echelon Base-Stock (Clark--Scarf)}
+\label{sec:policies:echelon}
+
+\textbf{Implementation:} \texttt{policies/echelon\_stock.py}
+
+The echelon base-stock policy implements the optimal policy for serial
+multi-echelon systems identified by \citet{ClarkScarf1960}.  Rather than
+conditioning on the local inventory position, it conditions on the
+\emph{echelon inventory position} (EIP) — the stock at the current node
+plus all downstream nodes, both on-hand and in-pipeline:
+
+\begin{equation}
+  \text{EIP}(n) = \text{on\_hand}(n)
+                + \sum_{d \in \text{downstream}(n)}
+                  \bigl[\text{on\_hand}(d) + \text{pipeline\_in}(d)\bigr]
+  \label{eq:eip}
+\end{equation}
+
+The order quantity is:
+
+\begin{equation}
+  q = \max\!\bigl(0,\; S_e - \text{EIP}(n)\bigr)
+\end{equation}
+
+where $S_e$ is the echelon base-stock level.  The simulator computes
+the EIP via a DFS traversal of the downstream subgraph in
+\texttt{Simulator.\_echelon\_pipeline}, and passes the result to the
+policy through the \texttt{pipeline\_in} argument.
+
+The echelon stock policy is optimal under the restrictive assumptions
+of Clark and Scarf (serial network, independent demands, no capacity
+constraints), which are \emph{not} fully satisfied in the 1N3 topology.
+Nevertheless, it provides an important upper bound on what a classical
+analytical approach can achieve.
+
+%% -----------------------------------------------------------------------
+\section{Policy Comparison}
+\label{sec:policies:comparison}
+
+Table~\ref{tab:policy-summary} summarises the seven policies along four
+dimensions: number of parameters, review type, whether the policy
+accounts for network structure, and its amenability to mixed-integer
+optimisation.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Summary of the seven implemented inventory policies.}
+  \label{tab:policy-summary}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    Policy & Params & Review & Network-aware & Opt-friendly \\
+    \midrule
+    Base-stock        & 1 & Continuous & No  & Yes \\
+    $(s,S)$           & 2 & Continuous & No  & Yes \\
+    $(R,Q)$           & 2 & Continuous & No  & Yes \\
+    $(R,S)$ periodic  & 2 & Periodic   & No  & Yes \\
+    Order-up-to + offset & 2--4 & Periodic & No & Yes \\
+    $(k,m)$-cycle     & 3--4 & Periodic   & No  & Yes \\
+    Echelon base-stock & 1 & Continuous & Yes & Yes \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+All policies are parameterised by small integer or continuous scalars,
+making them amenable to the Optuna-TPE optimiser described in
+Chapter~\ref{chap:optimization}.  The echelon base-stock policy is the
+only policy that explicitly accounts for downstream inventory, at the cost
+of requiring the simulator to compute the EIP on every tick.
+
+The main optimisation experiments (E0--E4) use the base-stock policy
+for all nodes because its single-parameter structure keeps the search
+space tractable (15 parameters for 5 SKUs $\times$ 3 non-supplier nodes)
+while being flexible enough to demonstrate the joint optimisation benefit.

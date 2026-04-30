@@ -1,0 +1,126 @@
+\chapter{Conclusion and Future Work}
+\label{chap:conclusion}
+
+%% -----------------------------------------------------------------------
+\section{Summary of Contributions}
+\label{sec:conc:summary}
+
+This DDP has developed, validated, and deployed a digital-twin simulation
+framework for Multi-Echelon Inventory Optimisation (MEIO) with
+transport-aware joint optimisation.  The main contributions are:
+
+\begin{enumerate}
+  \item \textbf{A modular, open digital-twin framework} implementing
+        seven inventory control policies (base-stock, $(s,S)$, $(R,Q)$,
+        $(R,S)$, order-up-to with phase offset, $(k,m)$-cycle, and
+        echelon base-stock), an arbitrary DAG-topology network model,
+        and a transport layer with simultaneous volume and weight capacity
+        constraints.  The framework is validated by approximately 80
+        pytest tests covering simulator invariants, policy behaviour, and
+        transport mechanics.
+
+  \item \textbf{An Optuna-TPE joint optimiser} that simultaneously
+        searches over 15 integer base-stock levels and 5 continuous
+        dispatch thresholds in a 20-dimensional mixed-integer space,
+        subject to a configurable minimum fill-rate constraint.
+
+  \item \textbf{Empirical demonstration of the 39\% cost-reduction
+        achievable through joint inventory-transport optimisation.}  On
+        a 5-SKU, 1N3 network with M5 Walmart demand, the joint optimiser
+        (E3) achieves:
+        \begin{itemize}
+          \item Total cost \$1,556,516 vs \$2,553,418 at baseline
+                ($-$39.0\%, saving nearly \$1M).
+          \item Fill rate 95.37\% vs 86.15\% at baseline (+9.2pp),
+                comfortably above the 92\% service-level target.
+          \item Transport cost reduced from 74.1\% to 54.4\% of total,
+                driven by a 4.3:1 leverage ratio between holding and
+                transport savings.
+        \end{itemize}
+
+  \item \textbf{A Pareto frontier mapping the cost-service trade-off}
+        across eight fill-rate targets (80\%--98\%), revealing a natural
+        operating point at $\sim$95\% fill / \$1.56M and sharply
+        diminishing returns above 94\%.
+
+  \item \textbf{A CSV-driven configuration pipeline} lowering the barrier
+        for practitioners to define and experiment with new scenarios
+        without editing JSON directly.
+
+  \item \textbf{Preliminary validation experiments (EV1--EV4)} confirming
+        simulator correctness against known theoretical behaviours: order
+        convergence under constant demand, demand shock propagation, policy
+        comparison under transport capacity, and non-linear capacity
+        scaling.
+\end{enumerate}
+
+%% -----------------------------------------------------------------------
+\section{Future Work}
+\label{sec:conc:futurework}
+
+The framework is designed to be extensible.  Several directions are
+planned or proposed for future development.
+
+\begin{description}
+  \item[Supply disruption sensitivity (near-term).] The supply disruption
+        experiment (§7.9) will re-run E0 and E3 under a 14-day supplier
+        outage to quantify how the optimised configuration degrades relative
+        to the analytical baseline.  The hypothesis is that E3's elevated
+        warehouse inventory provides a meaningful buffer.
+
+  \item[Stochastic lead times.] The current simulator uses deterministic
+        transit times.  Extending to stochastic lead times (e.g.\ Gamma
+        or Uniform distributed) would allow the framework to model
+        carrier variability and quantify its impact on optimal safety stock.
+
+  \item[Demand forecasting integration.] Replacing the CSV demand reader
+        with a demand forecasting module (e.g.\ Exponential Smoothing,
+        LightGBM, or neural-network-based point and interval forecasts)
+        would enable evaluation of policies under realistic forecasting
+        error rather than perfect demand information.
+
+  \item[Lateral transshipment.] Allowing stock transfers between
+        co-located retailers can substantially reduce local stockouts.
+        Adding a transshipment option to the edge model and a
+        transshipment-aware policy would extend the framework to cover
+        this common industry practice.
+
+  \item[RL-based policies.] Reinforcement learning (RL) policies
+        (e.g.\ Proximal Policy Optimisation) could be trained within the
+        simulator to discover adaptive ordering strategies that the
+        analytical policy zoo cannot represent.
+
+  \item[Multi-objective Pareto optimisation.] Rather than penalising
+        fill-rate violations as a scalar, a future version could use
+        Optuna's multi-objective API to jointly minimise cost and
+        maximise fill rate, yielding a richer Pareto front with
+        continuous trade-off resolution.
+
+  \item[Web dashboard.] A lightweight web interface allowing practitioners
+        to configure scenarios, trigger optimisation runs, and explore
+        results without command-line interaction would broaden the
+        framework's accessibility.
+
+  \item[Industry-specific configuration templates.] Pre-built JSON and
+        CSV templates for common supply-chain archetypes (grocery retail,
+        pharmaceutical distribution, e-commerce fulfilment) would reduce
+        setup time for new users.
+\end{description}
+
+%% -----------------------------------------------------------------------
+\section{Closing Remarks}
+\label{sec:conc:closing}
+
+The central finding of this DDP is simple to state but non-obvious in
+practice: \emph{inventory and transport are not independent levers.}
+Holding extra safety stock is conventionally viewed as a cost to be
+minimised; this work shows that, in a transport-cost-dominated network,
+extra holding cost is a strategic investment that enables vehicle
+consolidation and generates a 4:1 return in transport savings.
+
+The digital-twin simulation framework built in this project provides
+a portable, testable, and configurable tool for discovering such
+counter-intuitive optima in real supply chains.  By exposing the
+full cost-service Pareto frontier, it enables data-driven negotiation
+of service-level agreements and moves supply-chain design from intuition
+to evidence.

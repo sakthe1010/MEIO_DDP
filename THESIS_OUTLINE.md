@@ -10,7 +10,7 @@
 
 ## Abstract (to be written last)
 
-Two-paragraph summary covering: (i) the gap between closed-form MEIO models and real-world supply chains with capacity-constrained transport, supply disruptions, and stochastic dynamics; (ii) the digital-twin framework built in this DDP, the experiments executed (E0–E4), and the headline result that joint inventory + transport optimisation outperforms either silo alone.
+Two-paragraph summary covering: (i) the gap between closed-form MEIO models and real-world supply chains with capacity-constrained transport, supply disruptions, and stochastic dynamics; (ii) the digital-twin framework built in this DDP, the experiments executed and the results
 
 ---
 
@@ -20,14 +20,14 @@ Two-paragraph summary covering: (i) the gap between closed-form MEIO models and 
 
 **1.2  Why a digital twin?** Closed-form analytical models (newsvendor, Clark-Scarf) require restrictive assumptions: backlog symmetry, infinite supply upstream, deterministic lead times, no transport capacity. Real supply chains violate all four. A digital-twin simulator lets us evaluate any policy under realistic conditions.
 
-**1.3  Research questions.**
-- **RQ1.** Does *joint* inventory + transport optimisation outperform siloed inventory-only or transport-only optimisation in cost and service level?
-- **RQ2.** How sensitive are optimal policies to supply-side disruption (a node down for *N* days)?
-- **RQ3.** Does the bullwhip effect persist under optimised policies, or does optimisation suppress it?
+**1.3  Contributions.** (a) A modular, testable digital-twin framework with 7 inventory policies; (b) Optuna-TPE-based joint optimiser with hard fill-rate constraints; (c) Pareto-frontier analysis of cost vs service trade-off; (d) supply-disruption and weight-capacity modelling absent from prior open simulators.
 
-**1.4  Contributions.** (a) A modular, testable digital-twin framework with 7 inventory policies; (b) Optuna-TPE-based joint optimiser with hard fill-rate constraints; (c) Pareto-frontier analysis of cost vs service trade-off; (d) supply-disruption and weight-capacity modelling absent from prior open simulators.
+**1.4  Thesis structure.** Brief tour of the remaining chapters.
 
-**1.5  Thesis structure.** Brief tour of the remaining chapters.
+**1.5  Development trajectory.** The project unfolded in three phases over 1.5 years:
+- *Phase 1 — Prototype and validation (mid-semester):* Single-SKU simulator built and verified against controlled inputs (constant demand, synthetic demand shocks). Early experiments on a 2-warehouse × 3-retailer topology using M5 Walmart demand data confirmed that the simulation correctly captures inventory dynamics and transport capacity effects.
+- *Phase 2 — Scale-up and policy library:* Network extended to the 1-supplier → 1-warehouse → 3-retailers (1N3) topology with 5 SKUs. Policy suite expanded from 2 (base-stock, (s,S)) to 7, including echelon base-stock and (k,m)-cycle scheduling. Multi-seed validation and bullwhip metrics added.
+- *Phase 3 — Joint optimisation:* Optuna-TPE optimiser integrated; joint inventory + transport search demonstrated to outperform single-axis optimisation; Pareto frontier mapped across fill-rate targets.
 
 ---
 
@@ -69,8 +69,24 @@ Two-paragraph summary covering: (i) the gap between closed-form MEIO models and 
 **3.6  Configuration schema.** JSON-driven scenarios. Validator catches malformed inputs early.
 &nbsp;&nbsp;&nbsp;&nbsp;→ `engine/config_validator.py`, `config/1n3_5sku.json`
 
+**3.6a  CSV input pipeline.** A second, spreadsheet-friendly input method allows practitioners to define a scenario entirely through six CSV files rather than hand-editing JSON. The builder script (`inputs/scripts/build_config_from_csv.py`) reads and validates all six files and emits a complete JSON config:
+
+| CSV file | Contents |
+|----------|----------|
+| `sim_config.csv` | Global parameters: seed, time horizon, warm-up days, demand-fill strategy |
+| `products.csv` | SKU physical properties: volume and unit cost |
+| `nodes.csv` | One row per node — type, initial inventory, holding/shortage/ordering costs, infinite-supply flag |
+| `policies.csv` | Long-format policy parameters — one row per (node, policy parameter) pair |
+| `routes.csv` | Transport lanes: capacity, tiered costs (full/half/quarter load), lead time |
+| `demand_config.csv` | Maps each retailer to its demand CSV, specifying column names and fill strategy |
+
+Per-retailer daily demand CSVs (`inputs/demand_data/R{1,2,3}.csv`) are derived from the M5 Walmart dataset. A synthetic `demand_shock.csv` (constant demand with a single spike) was used for the EV2 validation experiment. The CSV pipeline lowers the barrier for experimenting with new network topologies without requiring direct JSON authoring.
+&nbsp;&nbsp;&nbsp;&nbsp;→ `inputs/scripts/build_config_from_csv.py`, `inputs/*.csv`, `inputs/demand_data/`
+
 **3.7  Supply disruption modelling.** Configurable node downtime; orders accumulate as backlog and clear when the node recovers.
 &nbsp;&nbsp;&nbsp;&nbsp;→ `engine/simulator.py` (`disruptions` field)
+
+**3.8  Iterative framework evolution.** The simulator was first built and validated on a simplified single-SKU, 2-warehouse × 3-retailer network (the architecture shown in the mid-semester poster) before being extended to the 5-SKU 1N3 topology. This incremental approach — validate the core daily-tick loop on controlled inputs, then add complexity — allowed each layer (transport capacity, multi-SKU demand, disruptions) to be tested in isolation before integration.
 
 ---
 
@@ -120,17 +136,28 @@ A common API across all policies:
 
 ## Chapter 6 — Experimental Methodology
 
-**6.1  Dataset.** 5 SKUs, 365-day horizon, demand profile from `inputs/`.
+**6.0  Preliminary Validation Experiments (Mid-Semester Review).** Before the main optimisation experiments, four controlled experiments were conducted to verify that the simulator correctly reproduces known theoretical behaviours. These experiments used a simplified 2-warehouse × 3-retailer single-SKU topology and real M5 Walmart retail demand data.
+
+| ID  | Title | Purpose |
+|-----|-------|---------|
+| EV1 | Constant-demand validation | Confirm that base-stock policy stabilises on-hand inventory at the target level under deterministic demand |
+| EV2 | Demand shock response | Confirm that upstream nodes show delayed, amplified response consistent with pipeline lead-time dynamics |
+| EV3 | Policy comparison under transport capacity | Compare base-stock vs (s,S) without and with vehicle capacity limits; confirm batching effect |
+| EV4 | Capacity scaling on M5 data | Quantify the non-linear cost–service trade-off as transport capacity is varied from 0.25× to 4× baseline |
+
+**6.1  Dataset origins.** Demand data is drawn from the **M5 Walmart Forecasting dataset** (Makridakis et al., 2020) — 28-day rolling windows of daily unit sales for selected SKU–store pairs. The M5 dataset was chosen because it exhibits realistic demand variability (intermittent spikes, weekly seasonality) that stresses inventory policies beyond what synthetic Poisson demand would reveal. Demand CSVs in `inputs/` were derived by filtering M5 series to match the 5 SKUs and 365-day horizon used in the main experiments.
+
+**6.2  Dataset (main experiments).** 5 SKUs, 365-day horizon, demand profile from `inputs/`.
 &nbsp;&nbsp;&nbsp;&nbsp;→ `config/1n3_5sku.json`, `inputs/`
 
-**6.2  Warm-up exclusion.** First *N* days dropped from KPI computation to avoid initial-inventory bias.
+**6.3  Warm-up exclusion.** First *N* days dropped from KPI computation to avoid initial-inventory bias.
 
-**6.3  Multi-seed statistical validation.** 95% confidence intervals across multiple seeds; side-by-side comparison of two configurations with CI overlap test (Welch's t).
+**6.4  Multi-seed statistical validation.** 95% confidence intervals across multiple seeds; side-by-side comparison of two configurations with CI overlap test (Welch's t).
 &nbsp;&nbsp;&nbsp;&nbsp;→ `scripts/multi_seed_validation.py`
 
-**6.4  Bullwhip metric.** Order CV² / demand CV² per (node, SKU), warm-up–excluded.
+**6.5  Bullwhip metric.** Order CV² / demand CV² per (node, SKU), warm-up–excluded.
 
-**6.5  Experiments E0–E4.**
+**6.6  Main Optimisation Experiments E0–E4.**
 | ID  | Title | Hypothesis |
 |-----|-------|------------|
 | E0  | Analytical baseline | High transport cost, acceptable fill |
@@ -142,11 +169,29 @@ A common API across all policies:
 
 &nbsp;&nbsp;&nbsp;&nbsp;→ `scripts/run_experiments.py` (`EXPERIMENT_META`)
 
-**6.6  Reproducibility.** Each run writes a self-contained `outputs/experiments_<ts>/` directory with `params.json`, `summary.md`, raw CSV logs, and plots.
+**6.7  Reproducibility.** Each run writes a self-contained `outputs/experiments_<ts>/` directory with `params.json`, `summary.md`, raw CSV logs, and plots.
 
 ---
 
 ## Chapter 7 — Results and Discussion
+
+**7.0  Preliminary Validation Results (EV1–EV4).**
+
+*EV1 — Constant-demand validation.* With deterministic daily demand and a base-stock policy set to S = μ·(L+1), the on-hand inventory at each node converges to and holds at the target level within L+1 days. This confirms the correctness of the order-placement and shipment-receipt logic.
+
+*EV2 — Demand shock response.* A one-time demand spike at a retailer propagates upstream with a lag equal to the cumulative lead time. The warehouse and supplier show amplified order spikes arriving 1–3 days later, consistent with the pipeline-inventory dynamics of Clark-Scarf theory.
+
+*EV3 — Policy comparison under transport capacity.* Without capacity limits, base-stock and (s,S) produce similar on-hand trajectories. With capacity limits, (s,S)'s fixed order quantity aligns better with vehicle loads while base-stock triggers partial shipments and higher per-unit transport cost. This motivated the need for joint inventory–transport optimisation.
+
+*EV4 — Capacity scaling on M5 data (2-warehouse × 3-retailer topology).* Scaling transport capacity from 0.25× to 4× baseline reveals a sharply non-linear cost–service trade-off:
+
+| Capacity multiplier | Fill rate | Total cost |
+|---------------------|-----------|------------|
+| 0.25× | 49.3% | $73,438 |
+| 1.00× (baseline) | 98.0% | $184,295 |
+| 4.00× | 99.3% | $712,235 |
+
+The 1×→4× doubling of fill rate from 98% to 99.3% costs nearly 4× more — identifying a "knee" in the Pareto frontier that motivates the later Pareto analysis in E4.
 
 **7.1  E0 — Analytical baseline.** Cost decomposition; identification of transport as the dominant cost component.
 

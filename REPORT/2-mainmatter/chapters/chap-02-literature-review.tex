@@ -1,0 +1,248 @@
+\chapter{Literature Review}
+\label{chap:litreview}
+
+This chapter reviews the theoretical foundations underlying the DDP and
+situates the contribution within the existing literature.  Seven areas
+are covered: single-echelon inventory theory, Clark-Scarf multi-echelon
+optimality, periodic-review and cyclic policies, the bullwhip effect,
+transport consolidation, simulation-optimisation methods, and existing
+open-source MEIO software.
+
+%% -----------------------------------------------------------------------
+\section{Single-Echelon Foundations}
+\label{sec:lit:singleechelon}
+
+\subsection{Newsvendor model}
+
+The \textbf{newsvendor model} \citep{ArrowHarrisMarschak1951} is the
+canonical single-period stocking problem.  A retailer must commit to a
+stock level $S$ before random demand $D$ is realised; unsold units cost
+$h$ per unit (holding) while unmet demand costs $p$ per unit (shortage).
+The optimal stock level equates the critical ratio:
+
+\begin{equation}
+  F(S^*) = \frac{p}{p + h}
+  \label{eq:newsvendor-crit}
+\end{equation}
+
+where $F$ is the CDF of demand.  For Gaussian demand this yields the
+service-level formula $S^* = \mu + z_\alpha \sigma$, where $z_\alpha$ is
+the quantile of the standard normal corresponding to the target fill rate
+$\alpha$.
+
+\subsection{Base-stock policy}
+
+The \textbf{base-stock (order-up-to) policy} extends the newsvendor to a
+multi-period setting with backlogging.  Each period the stocking point
+orders up to a fixed target $S$, which is also the \emph{inventory
+position} target.  Under i.i.d. demand and deterministic lead time $L$,
+the optimal base-stock level is:
+
+\begin{equation}
+  S^* = \mu(L+1) + z_\alpha \sigma\sqrt{L+1}
+  \label{eq:bs-optimal}
+\end{equation}
+
+This formula is used to initialise the analytical baseline in
+experiment E0 (Section~\ref{sec:results:e0}).
+
+\subsection{$(s,S)$ and $(R,Q)$ policies}
+
+The \textbf{$(s,S)$ policy} places an order to restore inventory to level
+$S$ whenever the inventory position falls below $s$
+\citep{ScaRf1960MathOptInventory}.  It is optimal for single-echelon
+problems with fixed ordering costs under mild conditions.  The
+\textbf{$(R,Q)$ policy} places a fixed quantity $Q$ whenever the
+inventory position reaches the reorder point $R$, which aligns naturally
+with discrete vehicle load sizes.
+
+\subsection{Economic Order Quantity (EOQ)}
+
+The \textbf{EOQ model} \citep{Harris1913} minimises the sum of ordering
+and holding costs in a deterministic, continuous-review setting:
+
+\begin{equation}
+  Q^* = \sqrt{\frac{2Kd}{h}}
+\end{equation}
+
+where $K$ is the fixed cost per order, $d$ is the demand rate, and $h$
+is the holding cost rate.  EOQ is a useful reference for calibrating
+order quantities in the $(R,Q)$ policy but ignores service levels and
+capacity constraints.
+
+%% -----------------------------------------------------------------------
+\section{Multi-Echelon Optimality --- Clark and Scarf (1960)}
+\label{sec:lit:clarkscarf}
+
+\citet{ClarkScarf1960} established the foundation of MEIO by proving that,
+for a serial network with backlogging, independent demands, and infinite
+supplier capacity, the \textbf{echelon base-stock policy} is optimal.
+
+The key insight is the \emph{echelon inventory position} (EIP): rather
+than conditioning the replenishment decision at echelon $i$ on only the
+local on-hand and in-transit stock, the policy conditions on the stock
+at echelon $i$ \emph{plus} all downstream echelons.  This accounts for
+the fact that inventory at echelon $i$ will eventually flow downstream
+and must satisfy downstream demand as well as local demand.
+
+The Clark-Scarf decomposition reduces the multi-echelon problem to a
+sequence of single-echelon newsvendor problems, one per echelon, solved
+in downstream-to-upstream order.  The solution is optimal under the
+following assumptions:
+\begin{itemize}
+  \item Serial (chain) topology — no divergent DCs serving multiple retailers.
+  \item Stationary, independent demands at each echelon.
+  \item No capacity constraints on orders or vehicles.
+  \item Backlogging (no lost sales).
+\end{itemize}
+
+When these assumptions are violated — as they are in the divergent 1N3
+topology with vehicle capacity and real M5 demand — the Clark-Scarf
+solution is no longer guaranteed to be optimal.  This gap motivates
+the simulation-optimisation approach taken in this DDP.
+
+%% -----------------------------------------------------------------------
+\section{Periodic-Review and Cyclic Policies}
+\label{sec:lit:periodic}
+
+\subsection{$(R,S)$ periodic-review policy}
+
+The \textbf{$(R,S)$ policy} reviews inventory every $R$ periods and
+orders up to level $S$.  It reduces the administrative overhead of
+continuous-review policies and is widely used in practice.  Optimal
+values of $R$ and $S$ can be found by exhaustive search or approximation
+\citep{Silver1978}.
+
+\subsection{$(k,m)$-cycle policies}
+
+\citet{Roundy1985} showed that \textbf{$(k,m)$-cycle policies} — which
+allow at most $k$ orders within an $m$-period cycle — can achieve
+near-optimal cost in multi-item inventory systems while enabling
+\emph{co-ordinated replenishment}.  By fixing the days on which each
+item is reviewed, transport planners can schedule full-truckload
+deliveries in advance, reducing the empty-vehicle problem that plagues
+unco-ordinated ordering.
+
+%% -----------------------------------------------------------------------
+\section{The Bullwhip Effect}
+\label{sec:lit:bullwhip}
+
+\citet{LeeEtAl1997} identified and formalised the \textbf{bullwhip
+effect}: the tendency for demand variability to amplify as orders
+propagate upstream in a supply chain.  They attributed bullwhip to four
+root causes: demand signal processing (over-reaction to demand
+fluctuations), order batching, price fluctuations, and rationing games.
+
+The most widely used empirical metric for bullwhip is the ratio of order
+variability to demand variability \citep{ChenEtAl2000}:
+
+\begin{equation}
+  \text{Bullwhip ratio} =
+  \frac{\text{CV}^2(\text{orders placed by node } n)}
+       {\text{CV}^2(\text{demand faced by node } n)}
+\end{equation}
+
+A ratio greater than one at an upstream node indicates amplification.
+This metric is computed for all nodes and SKUs in the post-warm-up
+window of each simulation run (Section~\ref{sec:meth:bullwhip}).
+
+%% -----------------------------------------------------------------------
+\section{Transport Consolidation in Inventory Models}
+\label{sec:lit:transport}
+
+Classical MEIO models treat transport cost as a linear function of
+quantity shipped, ignoring the step-function cost structure of
+vehicle-based transport.  In practice, a truck that is 50\% full
+and a truck that is 100\% full cost nearly the same to operate; the
+cost-per-unit is therefore roughly twice as high for the half-full truck.
+
+\citet{JagermanEtAl1990} and subsequent work on \emph{inventory with
+vehicle routing} showed that the interaction between inventory and
+transport decisions can be significant: raising safety stock at the
+retailer allows the supplier to batch orders and dispatch full trucks,
+reducing per-unit transport cost by 30--60\% in realistic settings.
+
+Despite this, the dominant MEIO literature --- including Clark-Scarf,
+Graves-Willems, and most textbook treatments --- ignores vehicle capacity
+and consolidation.  This creates the gap that the joint optimisation
+framework in this DDP addresses: when transport cost dominates the budget,
+\emph{inventory and transport decisions must be optimised jointly}.
+
+%% -----------------------------------------------------------------------
+\section{Simulation-Optimisation Methods}
+\label{sec:lit:simopt}
+
+When the performance surface of a stochastic or complex system cannot be
+expressed analytically, \textbf{simulation-optimisation} uses a simulator
+as an oracle and an optimisation algorithm to search the parameter space
+\citep{FuEtAl2005}.
+
+\subsection{Genetic algorithms and evolutionary methods}
+
+Genetic algorithms (GAs) have been applied to MEIO parameter tuning since
+the 1990s.  They are flexible and parallelisable but typically require
+thousands of function evaluations to converge and are not sample-efficient
+for smooth, low-dimensional surfaces.
+
+\subsection{Bayesian optimisation and Gaussian processes}
+
+\textbf{Bayesian optimisation} fits a probabilistic surrogate (typically a
+Gaussian process) to observed function values and uses an acquisition
+function (e.g.\ expected improvement) to choose the next evaluation point.
+It is highly sample-efficient for smooth functions in up to $\sim\!20$
+dimensions but scales cubically in the number of observations, making it
+slow for larger search spaces.
+
+\subsection{Tree-structured Parzen Estimator (TPE)}
+
+The \textbf{TPE algorithm} \citep{BergstraEtAl2011} replaces the
+Gaussian-process surrogate with two separate kernel density estimators:
+one for the distribution of parameters that led to good results ($\ell(x)$)
+and one for the rest ($g(x)$).  The acquisition function is
+$\ell(x) / g(x)$, maximised by drawing many samples from $\ell(x)$ and
+selecting the one with the highest ratio.
+
+TPE is well-suited to this DDP's optimisation problem because:
+\begin{itemize}
+  \item It handles mixed-integer variables (integer base-stock levels and
+        continuous dispatch thresholds) natively.
+  \item It scales approximately linearly in dimensionality, remaining
+        tractable for the 20-dimensional joint search space.
+  \item It is implemented in \textsc{Optuna} \citep{AkibaEtAl2019},
+        an open-source framework with support for parallelism and
+        constraint handling.
+\end{itemize}
+
+%% -----------------------------------------------------------------------
+\section{Existing MEIO Software}
+\label{sec:lit:software}
+
+Several simulation and optimisation tools are available for supply-chain
+modelling, but none satisfies all requirements of this DDP simultaneously.
+
+\begin{description}
+  \item[\textsc{SimPy}] A Python discrete-event simulation library.
+        General-purpose and well-maintained, but provides no MEIO domain
+        primitives (no nodes, no policies, no transport).  Building an
+        MEIO simulator from SimPy requires substantial boilerplate.
+
+  \item[\textsc{AnyLogic}] A commercial simulation platform with a
+        supply-chain library.  Powerful and well-documented, but
+        proprietary, expensive, and not scriptable for large-scale
+        parameter sweeps.
+
+  \item[\textsc{simopt}] An open-source Python library for
+        simulation-optimisation \citep{SimOptLib2022}.  Provides a
+        collection of problem instances and solvers, but does not
+        include MEIO-specific features such as multi-SKU demand,
+        vehicle capacity, or transport consolidation.
+
+  \item[\textsc{Optuna}] An open-source Bayesian/TPE optimisation
+        framework \citep{AkibaEtAl2019}.  Used as the outer
+        optimisation loop in this DDP; does not include simulation
+        functionality.
+\end{description}
+\vspace{1em}
+The gap identified is clear: there is no open, MEIO-specific simulation + optimisation framework that handles
+multi-SKU demand, arbitrary DAG topologies, and vehicle-capacity-aware
+transport.  This DDP fills that gap.

@@ -1,0 +1,118 @@
+~ \hfill {\bfseries Page}\par 
+\contentsline {chapter}{\nonumberline \MakeUppercase []{Acknowledgements}}{i}{chapter*.5}%
+\contentsline {chapter}{\nonumberline \MakeUppercase []{Abstract}}{iii}{chapter*.6}%
+\contentsline {chapter}{\nonumberline \MakeUppercase []{List of Tables}}{ix}{chapter*.8}%
+\contentsline {chapter}{\nonumberline \MakeUppercase []{List of Figures}}{xi}{chapter*.9}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~1}}\MakeUppercase []{Introduction}}{1}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Multi-Echelon Inventory Optimisation}{1}{section.1.1}%
+\contentsline {section}{\numberline {1.2}Why a Digital Twin?}{2}{section.1.2}%
+\contentsline {section}{\numberline {1.3}Contributions}{3}{section.1.3}%
+\contentsline {section}{\numberline {1.4}Thesis Structure}{3}{section.1.4}%
+\contentsline {section}{\numberline {1.5}Development Trajectory}{4}{section.1.5}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~2}}\MakeUppercase []{Literature Review}}{7}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Single-Echelon Foundations}{7}{section.2.1}%
+\contentsline {subsection}{\numberline {2.1.1}Newsvendor model}{7}{subsection.2.1.1}%
+\contentsline {subsection}{\numberline {2.1.2}Base-stock policy}{7}{subsection.2.1.2}%
+\contentsline {subsection}{\numberline {2.1.3}$(s,S)$ and $(R,Q)$ policies}{8}{subsection.2.1.3}%
+\contentsline {subsection}{\numberline {2.1.4}Economic Order Quantity (EOQ)}{8}{subsection.2.1.4}%
+\contentsline {section}{\numberline {2.2}Multi-Echelon Optimality --- Clark and Scarf (1960)}{8}{section.2.2}%
+\contentsline {section}{\numberline {2.3}Periodic-Review and Cyclic Policies}{9}{section.2.3}%
+\contentsline {subsection}{\numberline {2.3.1}$(R,S)$ periodic-review policy}{9}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}$(k,m)$-cycle policies}{9}{subsection.2.3.2}%
+\contentsline {section}{\numberline {2.4}The Bullwhip Effect}{10}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Transport Consolidation in Inventory Models}{10}{section.2.5}%
+\contentsline {section}{\numberline {2.6}Simulation-Optimisation Methods}{11}{section.2.6}%
+\contentsline {subsection}{\numberline {2.6.1}Genetic algorithms and evolutionary methods}{11}{subsection.2.6.1}%
+\contentsline {subsection}{\numberline {2.6.2}Bayesian optimisation and Gaussian processes}{11}{subsection.2.6.2}%
+\contentsline {subsection}{\numberline {2.6.3}Tree-structured Parzen Estimator (TPE)}{11}{subsection.2.6.3}%
+\contentsline {section}{\numberline {2.7}Existing MEIO Software}{12}{section.2.7}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~3}}\MakeUppercase []{Digital-Twin Architecture}}{13}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Network Topology}{13}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Discrete-Event Simulation Loop}{14}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Pseudocode}{15}{subsection.3.2.1}%
+\contentsline {section}{\numberline {3.3}Node State Model}{15}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Helper methods}{16}{subsection.3.3.1}%
+\contentsline {section}{\numberline {3.4}Transport Layer}{16}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}TransportOption}{17}{subsection.3.4.1}%
+\contentsline {subsection}{\numberline {3.4.2}GreedyLoadPlanner}{18}{subsection.3.4.2}%
+\contentsline {subsection}{\numberline {3.4.3}Pluggable protocols}{18}{subsection.3.4.3}%
+\contentsline {section}{\numberline {3.5}Cost Model}{19}{section.3.5}%
+\contentsline {paragraph}{\nonumberline Holding cost.}{19}{paragraph*.12}%
+\contentsline {paragraph}{\nonumberline Shortage (backlog) cost.}{19}{paragraph*.14}%
+\contentsline {paragraph}{\nonumberline Ordering cost.}{19}{paragraph*.16}%
+\contentsline {paragraph}{\nonumberline Transport cost.}{20}{paragraph*.18}%
+\contentsline {section}{\numberline {3.6}Configuration Schema}{20}{section.3.6}%
+\contentsline {section}{\numberline {3.7}CSV Input Pipeline}{21}{section.3.7}%
+\contentsline {section}{\numberline {3.8}Supply Disruption Modelling}{22}{section.3.8}%
+\contentsline {section}{\numberline {3.9}Iterative Framework Evolution}{22}{section.3.9}%
+\contentsline {paragraph}{\nonumberline Test suite.}{23}{paragraph*.21}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~4}}\MakeUppercase []{Inventory Policies}}{25}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Common API}{25}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Base-Stock Policy}{26}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Reorder-Point Family: $(s,S)$ and $(R,Q)$}{26}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}$(s,S)$ policy}{26}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}$(R,Q)$ policy}{27}{subsection.4.3.2}%
+\contentsline {section}{\numberline {4.4}Periodic-Review: $(R,S)$ and Order-Up-To with Phase Offset}{27}{section.4.4}%
+\contentsline {subsection}{\numberline {4.4.1}$(R,S)$ periodic-review policy}{27}{subsection.4.4.1}%
+\contentsline {subsection}{\numberline {4.4.2}Order-up-to with phase offset}{28}{subsection.4.4.2}%
+\contentsline {section}{\numberline {4.5}Cyclic Policy: $(k,m)$-Cycle Scheduling}{28}{section.4.5}%
+\contentsline {section}{\numberline {4.6}Echelon Base-Stock (Clark--Scarf)}{28}{section.4.6}%
+\contentsline {section}{\numberline {4.7}Policy Comparison}{29}{section.4.7}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~5}}\MakeUppercase []{Optimisation Framework}}{31}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Why Optuna TPE?}{31}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Search-Space Encoding --- Inventory}{32}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Search-Space Encoding --- Transport}{32}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Joint Search}{33}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Constrained Optimisation --- Minimum Fill Rate}{33}{section.5.5}%
+\contentsline {section}{\numberline {5.6}Pareto Exploration}{34}{section.5.6}%
+\contentsline {section}{\numberline {5.7}Re-Evaluation Discipline}{34}{section.5.7}%
+\contentsline {section}{\numberline {5.8}Search Space Dimensionality Summary}{34}{section.5.8}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~6}}\MakeUppercase []{Experimental Methodology}}{37}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Preliminary Validation Experiments (EV1--EV4)}{37}{section.6.1}%
+\contentsline {subsection}{\numberline {6.1.1}EV1 --- Constant-demand convergence}{37}{subsection.6.1.1}%
+\contentsline {subsection}{\numberline {6.1.2}EV2 --- Demand shock response}{38}{subsection.6.1.2}%
+\contentsline {subsection}{\numberline {6.1.3}EV3 --- Policy comparison under transport capacity}{38}{subsection.6.1.3}%
+\contentsline {subsection}{\numberline {6.1.4}EV4 --- Capacity scaling}{38}{subsection.6.1.4}%
+\contentsline {section}{\numberline {6.2}Dataset: M5 Walmart Forecasting Data}{38}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Main Experiment Configuration}{39}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Warm-Up Exclusion}{39}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Multi-Seed Statistical Validation}{40}{section.6.5}%
+\contentsline {section}{\numberline {6.6}Bullwhip Metric}{40}{section.6.6}%
+\contentsline {section}{\numberline {6.7}Main Optimisation Experiments E0--E4}{41}{section.6.7}%
+\contentsline {section}{\numberline {6.8}Reproducibility}{42}{section.6.8}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~7}}\MakeUppercase []{Results and Discussion}}{43}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Preliminary Validation Results (EV1--EV4)}{43}{section.7.1}%
+\contentsline {subsection}{\numberline {7.1.1}EV1 --- Constant-demand convergence}{43}{subsection.7.1.1}%
+\contentsline {subsection}{\numberline {7.1.2}EV2 --- Demand shock propagation}{43}{subsection.7.1.2}%
+\contentsline {subsection}{\numberline {7.1.3}EV3 --- Policy comparison under transport capacity}{44}{subsection.7.1.3}%
+\contentsline {subsection}{\numberline {7.1.4}EV4 --- Capacity scaling on M5 data}{44}{subsection.7.1.4}%
+\contentsline {section}{\numberline {7.2}E0 --- Analytical Baseline}{44}{section.7.2}%
+\contentsline {section}{\numberline {7.3}E1a --- Fixed 25\% Dispatch Threshold}{45}{section.7.3}%
+\contentsline {section}{\numberline {7.4}E1b --- Transport-Only Optimisation}{46}{section.7.4}%
+\contentsline {section}{\numberline {7.5}E2 --- Inventory-Only Optimisation}{47}{section.7.5}%
+\contentsline {section}{\numberline {7.6}E3 --- Joint Inventory + Transport Optimisation}{47}{section.7.6}%
+\contentsline {subsection}{\numberline {7.6.1}Mechanism of joint optimisation}{48}{subsection.7.6.1}%
+\contentsline {subsection}{\numberline {7.6.2}Per-SKU fill rates}{49}{subsection.7.6.2}%
+\contentsline {section}{\numberline {7.7}E4 --- Pareto Frontier: Cost vs Service}{49}{section.7.7}%
+\contentsline {section}{\numberline {7.8}Cross-Experiment Comparison}{50}{section.7.8}%
+\contentsline {section}{\numberline {7.9}Bullwhip Analysis}{51}{section.7.9}%
+\contentsline {section}{\numberline {7.10}Statistical Robustness}{51}{section.7.10}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~8}}\MakeUppercase []{Discussion}}{53}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Answering the Research Questions}{53}{section.8.1}%
+\contentsline {subsection}{\numberline {8.1.1}RQ1: Does joint inventory-transport optimisation outperform single-axis optimisation?}{53}{subsection.8.1.1}%
+\contentsline {subsection}{\numberline {8.1.2}RQ2: How does the joint-optimised configuration perform under supply disruption?}{54}{subsection.8.1.2}%
+\contentsline {subsection}{\numberline {8.1.3}RQ3: Does joint optimisation suppress the bullwhip effect?}{54}{subsection.8.1.3}%
+\contentsline {section}{\numberline {8.2}Practical Recommendations}{55}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Limitations}{55}{section.8.3}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Chapter~9}}\MakeUppercase []{Conclusion and Future Work}}{57}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Summary of Contributions}{57}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Future Work}{58}{section.9.2}%
+\contentsline {section}{\numberline {9.3}Closing Remarks}{59}{section.9.3}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Appendix~A}}\MakeUppercase []{Configuration Schema Reference}}{61}{appendix.A}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Appendix~B}}\MakeUppercase []{Per-Experiment Policy Parameters}}{65}{appendix.B}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Appendix~C}}\MakeUppercase []{Test Suite Summary}}{67}{appendix.C}%
+\contentsline {chapter}{\numberline {\MakeUppercase []{Appendix~D}}\MakeUppercase []{Reproducing the Results}}{69}{appendix.D}%
+\contentsline {chapter}{\nonumberline \MakeUppercase []{Bibliography}}{73}{chapter*.61}%
+\contentsline {chapter}{\nonumberline \MakeUppercase []{Curriculum Vitae}}{75}{chapter*.62}%
+\contentsline {chapter}{\nonumberline \MakeUppercase []{Committee}}{77}{chapter*.63}%
+\providecommand \tocbasic@end@toc@file {}\tocbasic@end@toc@file 

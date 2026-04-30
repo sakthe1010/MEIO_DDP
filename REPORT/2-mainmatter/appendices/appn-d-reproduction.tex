@@ -1,0 +1,104 @@
+\chapter{Reproducing the Results}
+\label{appn:reproduction}
+
+All results in this thesis were produced with the code in the project
+repository.  The following commands reproduce each experiment from scratch.
+A Python 3.10+ virtual environment with \texttt{pip install -r requirements.txt}
+is assumed.
+
+%% -----------------------------------------------------------------------
+\section*{Prerequisites}
+
+\begin{verbatim}
+# Clone repository and install dependencies
+pip install -r requirements.txt
+\end{verbatim}
+
+%% -----------------------------------------------------------------------
+\section*{Run the Test Suite}
+
+\begin{verbatim}
+python -m pytest tests/ -q
+\end{verbatim}
+
+%% -----------------------------------------------------------------------
+\section*{Single Simulation Run (E0 baseline)}
+
+\begin{verbatim}
+python scripts/run_simulation.py --config config/1n3_5sku.json
+\end{verbatim}
+
+%% -----------------------------------------------------------------------
+\section*{Full Experiment Suite (E0--E4)}
+
+\begin{verbatim}
+python scripts/run_experiments.py \
+    --config config/1n3_5sku.json \
+    --trials 100 \
+    --warmup 30
+\end{verbatim}
+
+Output is written to \texttt{outputs/experiments\_\textlangle ts\textrangle /}.
+
+%% -----------------------------------------------------------------------
+\section*{Run Specific Experiments}
+
+\begin{verbatim}
+# Run only E0 and E3
+python scripts/run_experiments.py \
+    --config config/1n3_5sku.json \
+    --experiments E0 E3 \
+    --trials 100
+
+# Run only E4 (Pareto frontier)
+python scripts/run_experiments.py \
+    --config config/1n3_5sku.json \
+    --experiments E4 \
+    --trials 100
+\end{verbatim}
+
+%% -----------------------------------------------------------------------
+\section*{Generate Plots}
+
+\begin{verbatim}
+python scripts/plot_results.py \
+    --expdir outputs/experiments_<timestamp>/
+\end{verbatim}
+
+Produces PNG plots in \texttt{outputs/experiments\_\textlangle ts\textrangle /plots/}:
+\texttt{cost\_breakdown.png}, \texttt{fill\_rate.png},
+\texttt{inventory\_ts.png}, \texttt{orders\_ts.png},
+\texttt{bullwhip.png}, \texttt{pareto\_frontier.png}.
+
+%% -----------------------------------------------------------------------
+\section*{Multi-Seed Statistical Validation}
+
+\begin{verbatim}
+python scripts/multi_seed_validation.py \
+    --config config/1n3_5sku.json \
+    --params outputs/experiments_<timestamp>/E3/params.json \
+    --seeds 10
+\end{verbatim}
+
+Reports 95\% confidence intervals on cost and fill rate, and Welch's
+$t$-test significance for the E3 vs E0 comparison.
+
+%% -----------------------------------------------------------------------
+\section*{Build Config from CSV}
+
+\begin{verbatim}
+python inputs/scripts/build_config_from_csv.py
+# Writes inputs/config/generated_from_csv.json
+
+python scripts/run_simulation.py \
+    --config inputs/config/generated_from_csv.json
+\end{verbatim}
+
+%% -----------------------------------------------------------------------
+\section*{Exact Run Used in Thesis}
+
+The results reported in Chapter~\ref{chap:results} are from the run
+directory \texttt{outputs/experiments\_20260424\_132309/}.  The precise
+random seed and trial count are recorded in
+\texttt{outputs/experiments\_20260424\_132309/E*/params.json} and can be
+re-used to reproduce the exact results.

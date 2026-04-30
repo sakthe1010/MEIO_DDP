@@ -14,7 +14,7 @@ A discrete-event simulation framework for **Multi-Echelon Inventory Optimization
 | `scripts/` | CLI entry points: single run, experiment suite, plots, multi-seed validation |
 | `config/` | JSON scenario files (network, SKUs, policies, edges, optional disruptions) |
 | `tests/` | pytest suite (~80 tests) covering invariants, policy behaviour, transport |
-| `inputs/` | Demand CSVs and external dataset files |
+| `inputs/` | CSV-based config pipeline + per-retailer demand CSVs (M5 Walmart) |
 | `dataset/` | Reference datasets |
 | `outputs/` | Auto-generated run artefacts (`outputs/<run_type>_<timestamp>/`) |
 | `research papers/` | Literature reference PDFs |
@@ -60,6 +60,47 @@ python scripts/multi_seed_validation.py --config config/1n3_5sku.json --params o
 # Tests
 python -m pytest tests/ -q
 ```
+
+---
+
+## CSV input pipeline (`inputs/`)
+
+An alternative to writing JSON configs by hand. Fill the 6 CSV files, run the builder, and the JSON is generated automatically.
+
+```bash
+python inputs/scripts/build_config_from_csv.py
+# → writes inputs/config/generated_from_csv.json
+# then pass that to any script:
+python scripts/run_simulation.py --config inputs/config/generated_from_csv.json
+```
+
+### Input files
+
+| File | Columns | Purpose |
+|------|---------|---------|
+| `inputs/sim_config.csv` | `parameter, value` | Global params: `seed`, `time_horizon`, `tail_days`, `strategy`, `warmup_days` |
+| `inputs/products.csv` | `sku, unit_volume, unit_cost` | SKU physical properties |
+| `inputs/nodes.csv` | `node_id, node_type, initial_inventory, holding_cost, shortage_cost, order_cost_fixed, order_cost_per_unit, infinite_supply` | One row per node |
+| `inputs/policies.csv` | `node_id, policy_type, param_name, param_value` | Long-format — one row per policy parameter; `policy_type` must match a key in `POLICY_REQUIRED_PARAMS` inside the builder |
+| `inputs/routes.csv` | `from_node, to_node, route_id, mode, capacity, cost_full, cost_half, cost_quarter, lead_time` | Transport lanes (deterministic lead times) |
+| `inputs/demand_config.csv` | `node_id, source_type, source_path, time_col, quantity_col, fill_strategy` | Points each retailer to its demand CSV; `source_type` must be `"csv"`; `fill_strategy`: `wrap` loops the series |
+
+### Demand data
+
+- `inputs/demand_data/R1.csv`, `R2.csv`, `R3.csv` — per-retailer daily demand derived from the **M5 Walmart Forecasting dataset** (columns: `date`, `quantity`).
+- `inputs/demand_shock.csv` — synthetic constant-demand series with a single spike at day 20 (used for the EV2 demand-shock validation experiment).
+
+### Policy types recognised by the builder
+
+| `policy_type` | Required `param_name` values |
+|---------------|------------------------------|
+| `base_stock` | `base_stock_level` |
+| `ss` | `s`, `S` |
+| `order_up_to` | `level` |
+| `periodic_review` | `review_period`, `target_level` |
+| `km_cycle` | `K`, `M` |
+
+> Supplier nodes do not require a policy entry. Every other node must have one.
 
 ---
 

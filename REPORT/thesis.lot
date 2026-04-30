@@ -1,0 +1,40 @@
+{\bfseries Table} \hfill {\bfseries Caption} \hfill {\bfseries Page}\par 
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {3.1}{\ignorespaces CSV input files and their roles in the configuration pipeline.}}{21}{table.caption.19}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces Summary of the seven implemented inventory policies.}}{30}{table.caption.22}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Search space dimensionality by optimisation mode (1N3 topology, 5 SKUs).}}{35}{table.caption.23}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {6.1}{\ignorespaces Preliminary validation experiments: scope and purpose.}}{37}{table.caption.24}%
+\contentsline {table}{\numberline {6.2}{\ignorespaces Main experiment simulation parameters.}}{39}{table.caption.25}%
+\contentsline {table}{\numberline {6.3}{\ignorespaces Main optimisation experiments: design and hypothesis.}}{41}{table.caption.26}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {7.1}{\ignorespaces EV4 capacity scaling results (single-SKU 2W $\times $ 3R topology).}}{44}{table.caption.27}%
+\contentsline {table}{\numberline {7.2}{\ignorespaces E0 cost decomposition and fill rate.}}{45}{table.caption.28}%
+\contentsline {table}{\numberline {7.3}{\ignorespaces E1a cost decomposition and fill rate.}}{45}{table.caption.29}%
+\contentsline {table}{\numberline {7.4}{\ignorespaces E1b cost decomposition and fill rate.}}{46}{table.caption.30}%
+\contentsline {table}{\numberline {7.5}{\ignorespaces E2 cost decomposition and fill rate.}}{47}{table.caption.31}%
+\contentsline {table}{\numberline {7.6}{\ignorespaces E3 cost decomposition and fill rate (headline result).}}{48}{table.caption.32}%
+\contentsline {table}{\numberline {7.7}{\ignorespaces Cost composition shift from E0 to E3.}}{48}{table.caption.33}%
+\contentsline {table}{\numberline {7.8}{\ignorespaces E3 fill rates by SKU.}}{49}{table.caption.34}%
+\contentsline {table}{\numberline {7.9}{\ignorespaces E4 Pareto frontier: cost vs fill rate under joint optimisation.}}{49}{table.caption.35}%
+\contentsline {table}{\numberline {7.10}{\ignorespaces Summary of all main optimisation experiments.}}{50}{table.caption.37}%
+\contentsline {table}{\numberline {7.11}{\ignorespaces Bullwhip ratios (order CV$^2$ / demand CV$^2$) under E0 and E3. Ratios $> 1$ indicate amplification.}}{51}{table.caption.38}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {B.1}{\ignorespaces E3 optimised base-stock levels.}}{66}{table.caption.47}%
+\contentsline {table}{\numberline {B.2}{\ignorespaces E3 optimised dispatch thresholds.}}{66}{table.caption.49}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {C.1}{\ignorespaces Test modules and their coverage areas.}}{68}{table.caption.51}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\providecommand \tocbasic@end@toc@file {}\tocbasic@end@toc@file 

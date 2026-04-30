@@ -1,0 +1,51 @@
+\chapter{Abstract}
+\begin{tabular}{@{} >{\bfseries}p{0.2\textwidth} p{0.77\textwidth} @{}}
+\MakeUppercase{Keywords} &
+Multi-echelon inventory optimisation; discrete-event simulation; digital twin;
+transport consolidation; Bayesian optimisation; TPE; bullwhip effect; supply
+chain; joint optimisation; Pareto frontier\\
+\end{tabular}
+\par
+
+\begin{onehalfspacing}
+Classical multi-echelon inventory models optimise stock levels in isolation,
+treating transport as a linear per-unit cost.  In practice, vehicle-based
+transport has a step-function cost structure: a half-full truck costs nearly
+the same to operate as a full one, so per-unit transport cost is dictated by
+vehicle utilisation rather than quantity shipped.  When transport accounts
+for the majority of total supply-chain cost, this mismatch renders
+inventory-only or transport-only optimisation fundamentally suboptimal.
+
+This project develops a modular, open-source \textbf{digital-twin simulation
+framework} for Multi-Echelon Inventory Optimisation (MEIO) that addresses
+this gap by co-optimising inventory and transport decisions jointly.  The
+framework implements a discrete-event simulation engine with a daily-tick
+loop, seven inventory control policies (base-stock, $(s,S)$, $(R,Q)$,
+$(R,S)$, order-up-to with phase offset, $(k,m)$-cycle, and echelon
+base-stock), an arbitrary directed-acyclic-graph network topology, and a
+transport layer with simultaneous volume and weight capacity constraints.  A
+Tree-structured Parzen Estimator (TPE) optimiser, implemented via Optuna,
+searches a 20-dimensional mixed-integer space of base-stock levels and
+dispatch thresholds, subject to a configurable minimum fill-rate constraint.
+
+Experiments are conducted on a 5-SKU, one-supplier–one-warehouse–three-retailer
+(1N3) network using real demand data from the M5 Walmart Forecasting dataset.
+The headline result is that joint inventory-transport optimisation (E3) achieves
+a total cost of \$1{,}556{,}516 --- a \textbf{39\% reduction} relative to
+the analytical Clark-Scarf baseline (\$2{,}553{,}418), while simultaneously
+raising the fill rate from 86.15\% to 95.37\%, comfortably above the 92\%
+service-level target.  The mechanism is a deliberate increase in warehouse
+safety stock (+\$242k holding cost) that enables high vehicle-consolidation
+thresholds, reducing transport cost by \$1.04M and yielding a \textbf{4.3:1
+leverage ratio} between holding and transport savings.
+
+A Pareto frontier analysis across eight fill-rate targets (80\%--98\%) reveals
+a natural operating point at approximately 95\% fill / \$1.56M and sharply
+diminishing returns above 94\%, providing a principled basis for negotiating
+service-level agreements.  Statistical robustness is confirmed via multi-seed
+validation with 95\% confidence intervals and Welch's $t$-tests.
+
+The framework is validated by approximately 80 pytest unit and integration
+tests and is fully reproducible from a self-contained configuration and
+demand-data pipeline.
+\end{onehalfspacing}

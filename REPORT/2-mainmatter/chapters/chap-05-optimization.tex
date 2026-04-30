@@ -1,0 +1,187 @@
+\chapter{Optimisation Framework}
+\label{chap:optimization}
+
+This chapter describes the Optuna-TPE-based optimisation framework
+(\texttt{optimizer/optimize.py}) used to search for high-quality inventory
+and transport parameters.  Three modes are supported: inventory-only,
+transport-only, and joint.  The joint mode is the central research
+contribution of this DDP.
+
+%% -----------------------------------------------------------------------
+\section{Why Optuna TPE?}
+\label{sec:opt:tpe}
+
+The optimisation problem of selecting base-stock levels and dispatch
+thresholds for a multi-echelon network is a \emph{black-box, mixed-integer,
+constrained} problem: the objective function (total simulated cost subject
+to a fill-rate constraint) has no closed-form gradient, the decision
+variables include both integer-valued stock levels and continuous-valued
+dispatch thresholds, and the feasible region is defined by a fill-rate
+inequality that cannot be expressed analytically.
+
+Classical derivative-based methods are inapplicable.  Genetic algorithms
+and simulated annealing are gradient-free but require many evaluations to
+converge.  Bayesian optimisation with a Gaussian-process surrogate is
+sample-efficient but scales poorly beyond $\sim\!20$ dimensions due to
+the cubic cost of kernel inversion.
+
+The \textbf{Tree-structured Parzen Estimator (TPE)} algorithm
+\citep{BergstraEtAl2011} addresses these limitations:
+\begin{itemize}
+  \item It models the distribution of good and bad parameters separately
+        using kernel density estimators, requiring no global surrogate.
+  \item It scales approximately linearly in the number of dimensions,
+        making it practical for 15--20 dimensional joint spaces.
+  \item It handles mixed-integer variables natively — integer and
+        continuous parameters are treated uniformly.
+  \item It is implemented in the open-source \textsc{Optuna} library
+        \citep{AkibaEtAl2019} with support for parallelism and pruning.
+\end{itemize}
+
+%% -----------------------------------------------------------------------
+\section{Search-Space Encoding --- Inventory}
+\label{sec:opt:space-inventory}
+
+For the inventory mode, the optimiser searches over the base-stock level
+$S_{n,s}$ for every non-supplier (node, SKU) pair.  In the 1N3 topology
+with 5 SKUs and 3 non-supplier nodes (W1, R1, R2, R3 — 4 nodes total
+excluding the supplier), this gives up to $4 \times 5 = 20$ integer
+parameters, though in the main experiments the warehouse W1 and three
+retailers yield 15 parameters when the supplier is excluded.
+
+Each parameter $S_{n,s}$ is bounded relative to the analytical base-stock
+level $S^*_{n,s}$ (Equation~\ref{eq:newsvendor}):
+
+\begin{equation}
+  S_{n,s} \in \Bigl[\max\!\bigl(10,\; \lfloor 0.3 \cdot S^*_{n,s} \rfloor\bigr),\;
+                    \lceil 3.0 \cdot S^*_{n,s} \rceil\Bigr] \cap \mathbb{Z}
+  \label{eq:inv-bounds}
+\end{equation}
+
+The lower bound of 10 units prevents degenerate stock-out configurations.
+The upper bound of $3 \times S^*$ is wide enough to encompass very
+conservative safety-stock strategies.
+
+%% -----------------------------------------------------------------------
+\section{Search-Space Encoding --- Transport}
+\label{sec:opt:space-transport}
+
+For the transport mode, the optimiser searches over the
+\texttt{min\_dispatch\_utilization} threshold $\delta_e$ for every edge $e$
+in the network.  The 1N3 topology has 5 directed edges
+(Supplier$\to$W1, W1$\to$R1, W1$\to$R2, W1$\to$R3, and the Supplier
+self-supply edge), giving 5 continuous parameters:
+
+\begin{equation}
+  \delta_e \in [0.0,\; 0.9]
+  \label{eq:disp-bounds}
+\end{equation}
+
+A value of 0 means dispatch on any positive load; a value of 0.9 means
+the planner waits until 90\% of the vehicle's capacity is committed.
+The upper bound of 0.9 (rather than 1.0) prevents the edge from
+deadlocking when demand is low.
+
+%% -----------------------------------------------------------------------
+\section{Joint Search}
+\label{sec:opt:joint}
+
+In joint mode, a single Optuna study is created over the \emph{union} of
+the inventory and transport search spaces — 20 parameters for the 1N3
+topology (15 integer stock levels + 5 continuous dispatch thresholds).
+A single trial proposes all 20 values simultaneously, evaluates the full
+simulation, and returns the penalised cost.
+
+This differs from an alternating or decomposed optimisation approach:
+both sets of parameters are updated together in each trial, allowing
+the TPE model to learn cross-parameter interactions — specifically, that
+raising $S_{n,s}$ (inventory) enables raising $\delta_e$ (consolidation)
+without increasing stockout risk.
+
+The joint study runs for $n\_\text{trials}$ sequential evaluations by
+default; the \texttt{n\_jobs} argument can parallelize across cores, with
+the caveat that the Python GIL limits speedup when the simulator is
+CPU-bound.
+
+%% -----------------------------------------------------------------------
+\section{Constrained Optimisation --- Minimum Fill Rate}
+\label{sec:opt:constraint}
+
+Most supply chains operate under a minimum service-level agreement.  The
+optimiser enforces a minimum fill rate $\alpha_{\min}$ via a
+\emph{soft penalty}:
+
+\begin{equation}
+  \text{objective} = C_{\text{total}} + \max\!\bigl(0,\;
+    \alpha_{\min} - \hat{\alpha}\bigr) \times 100 \times 10^6
+  \label{eq:penalty}
+\end{equation}
+
+where $\hat{\alpha}$ is the fill rate achieved by the current trial and
+the $10^6$ multiplier per percentage-point shortfall makes a 1\%
+fill-rate violation cost \$1 million — far exceeding any realistic cost
+saving.  This ensures that feasible trials (those with $\hat{\alpha} \geq
+\alpha_{\min}$) always dominate infeasible ones in the Pareto ranking.
+
+After all trials are complete, the best \emph{feasible} trial is selected
+as the result.  If no trial satisfies the fill-rate constraint, the
+framework falls back to the best-overall trial and warns the user.
+
+%% -----------------------------------------------------------------------
+\section{Pareto Exploration}
+\label{sec:opt:pareto}
+
+Experiment E4 maps the cost–service Pareto frontier by repeating the joint
+optimisation at eight fill-rate targets:
+$\alpha_{\min} \in \{80\%, 85\%, 88\%, 90\%, 92\%, 94\%, 96\%, 98\%\}$.
+
+Each run is an independent joint optimisation with 100 trials.  After all
+runs complete, the non-dominated points on the (cost, fill\_rate) plane are
+identified and plotted.  Because the penalty function increases monotonically
+with fill-rate shortfall, the resulting frontier estimates the marginal cost
+of one additional percentage point of service level across the range.
+
+%% -----------------------------------------------------------------------
+\section{Re-Evaluation Discipline}
+\label{sec:opt:reeval}
+
+Optuna internally minimises a noisy objective computed from a single
+simulation run per trial.  Because the demand series is deterministic
+(seeded) in these experiments, the noise comes only from the trial-to-trial
+variation in dispatch decisions under different threshold values.  However,
+for statistical rigour, the best parameter set identified by the optimiser
+is \emph{re-evaluated} in a fresh simulation run before its cost and fill
+rate are reported.
+
+The re-evaluated metrics — not the optimiser's internal trial value —
+are what appear in Chapter~\ref{chap:results}.  The best parameters are
+also saved to a \texttt{params.json} file in the experiment output
+directory, enabling reproducibility without re-running the optimiser.
+
+%% -----------------------------------------------------------------------
+\section{Search Space Dimensionality Summary}
+\label{sec:opt:dims}
+
+Table~\ref{tab:opt-dims} summarises the search space for each optimisation
+mode on the 1N3, 5-SKU network.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Search space dimensionality by optimisation mode (1N3 topology, 5 SKUs).}
+  \label{tab:opt-dims}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Mode & Integer params & Continuous params & Total \\
+    \midrule
+    Inventory-only  & 15 & 0  & 15 \\
+    Transport-only  & 0  & 5  & 5  \\
+    Joint           & 15 & 5  & 20 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The 20-dimensional joint space is well within the practical range of
+TPE-based Bayesian optimisation (commonly cited as up to $\sim\!50$
+dimensions \citep{BergstraEtAl2011}), making 100--200 trials sufficient
+to identify good solutions in the experiments reported in
+Chapter~\ref{chap:results}.

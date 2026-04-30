@@ -1,0 +1,91 @@
+%% IITM Dual Degree Project (DDP) Thesis
+%% Author: Sakthe Balan
+%% Topic: A Digital-Twin Simulation Framework for Joint Inventory and
+%%        Transport Optimisation in Multi-Echelon Supply Chains
+\documentclass
+    [mtech,
+     smplmath]
+    {iitmdissertation}
+
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{setspace}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  language=Python,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{red!60!black},
+}
+
+\dissertationDepartment      {Department of Data Science and Artificial Intelligence}
+\dissertationAuthorName      {Sakthe Balan}
+\dissertationDateOfBirth     {[Date of Birth]}
+\dissertationDegree          {Interdisciplinary Dual Degree Programme}
+\dissertationTitle           {A Digital-Twin Simulation Framework for Joint
+                              Inventory and Transport Optimisation in
+                              Multi-Echelon Supply Chains}
+\dissertationMonth           {May}
+\dissertationYear            {2026}
+\dissertationCertificateDate {May 2026}
+\dissertationType            {Project Report}
+\dissertationGuides          {[Thesis Guide Name]}
+\dissertationImage           {}
+
+\setupGlossaryAbbreviationsDefinitions
+\begin{document}
+\onehalfspacing
+  \prematter
+      \input 0-prematter/pre-quote
+      \input 0-prematter/pre-dedication
+      \printCertificate
+      \input 0-prematter/pre-list-of-publications
+%%
+%%
+%%
+  \begin{FrontMatter}
+      \printGlossaryAndAbbreviations
+      \printNotation
+  \end{FrontMatter}
+%%
+%%
+%%
+  \begin{MainMatter}
+      \input 2-mainmatter/chapters/chap-01-introduction
+      \input 2-mainmatter/chapters/chap-02-literature-review
+      \input 2-mainmatter/chapters/chap-03-architecture
+      \input 2-mainmatter/chapters/chap-04-policies
+      \input 2-mainmatter/chapters/chap-05-optimization
+      \input 2-mainmatter/chapters/chap-06-methodology
+      \input 2-mainmatter/chapters/chap-07-results
+      \input 2-mainmatter/chapters/chap-08-discussion
+      \input 2-mainmatter/chapters/chap-09-conclusion
+
+      \appendix
+      \input 2-mainmatter/appendices/appn-a-config-schema
+      \input 2-mainmatter/appendices/appn-b-params
+      \input 2-mainmatter/appendices/appn-c-tests
+      \input 2-mainmatter/appendices/appn-d-reproduction
+  \end{MainMatter}
+%%
+%%
+%%
+  \begin{BackMatter}
+      \printBibliographyReferences{references.bib}
+      \printCV
+      \printCommittee
+  \end{BackMatter}
+\end{document}

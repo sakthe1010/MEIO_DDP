@@ -1,0 +1,143 @@
+\chapter{Discussion}
+\label{chap:discussion}
+
+%% -----------------------------------------------------------------------
+\section{Answering the Research Questions}
+\label{sec:disc:rq}
+
+Three research questions (RQs) motivated this DDP.  This section
+evaluates each against the experimental evidence.
+
+\subsection{RQ1: Does joint inventory-transport optimisation outperform
+single-axis optimisation?}
+
+\textbf{Answer: Yes, decisively.}
+
+Experiment E3 (joint optimisation) achieves a total cost of \$1,556,516
+at a fill rate of 95.37\%.  This is:
+\begin{itemize}
+  \item \textbf{39.0\% below the analytical baseline (E0)}, which costs
+        \$2,553,418 at only 86.15\% fill.
+  \item \textbf{15.5\% below transport-only optimisation (E1b)}, which
+        costs \$2,252,612 but achieves only 82.25\% fill.
+  \item \textbf{42.4\% below inventory-only optimisation (E2)}, which
+        costs \$2,700,388 even while achieving 97.33\% fill.
+\end{itemize}
+
+The mechanism is clear from the cost-shift analysis in
+Section~\ref{sec:results:e3}: joint optimisation deliberately increases
+holding cost by \$242k (+175\%) to unlock \$1.04M in transport savings
+($-$55\%), achieving a 4.3:1 leverage ratio between holding and transport costs.
+
+The reason single-axis optimisation cannot achieve this is structural.
+Transport-only optimisation (E1b) cannot raise dispatch thresholds
+without depleting retailer inventory, because base-stock levels are
+anchored at lean analytical values.  Inventory-only optimisation (E2)
+raises stock levels to achieve good fill rates but leaves dispatch
+thresholds at zero, so every order is dispatched immediately as a small,
+expensive partial load.  Only joint search discovers that raising stock
+and raising dispatch thresholds are \emph{complementary} moves that must
+be made simultaneously.
+
+\subsection{RQ2: How does the joint-optimised configuration perform under
+supply disruption?}
+\label{sec:disc:rq2}
+
+\textbf{This research question addresses a planned extension that has not
+yet been conducted.}  The supply disruption sensitivity experiment
+(§7.9 of the original research plan) will re-run E0 and E3 with a 14-day
+supplier outage and compare the degradation in fill rate and cost between
+the two configurations.  The hypothesis, consistent with the literature on
+safety-stock buffering, is that the E3 configuration — which holds higher
+inventory at the warehouse level — will degrade more gracefully than E0.
+This experiment is reserved for future work and is described in the
+limitations and future work sections below.
+
+\subsection{RQ3: Does joint optimisation suppress the bullwhip effect?}
+
+\textbf{Answer: Partially, but not fully.}
+
+The bullwhip analysis in Section~\ref{sec:results:bullwhip} shows that
+amplification ratios at the warehouse and supplier nodes decrease under
+E3 relative to E0.  This is consistent with the mechanism: the high
+dispatch thresholds on the supplier-to-warehouse lanes mean that the
+warehouse accumulates demand before placing large consolidated orders,
+which appear \emph{less} variable to the supplier on a per-day basis.
+
+However, amplification is not eliminated.  The warehouse node still
+aggregates orders from three retailers with heterogeneous demand patterns,
+introducing variability that is not present in any individual retailer's
+demand.  Eliminating bullwhip entirely would require either a
+vendor-managed inventory arrangement (where the supplier directly observes
+retailer demand) or demand signal sharing — both of which are outside the
+scope of the current framework.
+
+%% -----------------------------------------------------------------------
+\section{Practical Recommendations}
+\label{sec:disc:recommendations}
+
+The experimental results translate into three actionable guidelines for
+supply-chain practitioners:
+
+\begin{enumerate}
+  \item \textbf{Co-optimise inventory and dispatch when transport cost
+        exceeds 50\% of total cost.}  In the E0 baseline, transport
+        accounts for 74\% of total cost — a strong signal that transport
+        is the primary lever.  Rule of thumb: if transport exceeds half
+        the total cost, the joint optimisation approach is likely to
+        return at least 20\% savings.
+
+  \item \textbf{Accept a deliberate holding-cost increase to unlock
+        consolidation.}  The 4.3:1 leverage ratio found in this study
+        suggests that every additional dollar of safety stock invested
+        in the warehouse returns approximately \$4.30 in transport
+        savings.  This counter-intuitive trade-off is invisible to managers
+        who optimise cost components independently.
+
+  \item \textbf{Use the Pareto frontier to negotiate service-level
+        agreements.}  The E4 results show a natural operating point at
+        approximately 95\% fill / \$1.56M and a more expensive regime at
+        98\% fill / \$1.68M, with sharply diminishing returns between the
+        two.  When agreeing SLAs with customers, mapping this frontier
+        allows the supplier to price each incremental service percentage
+        point accurately.
+\end{enumerate}
+
+%% -----------------------------------------------------------------------
+\section{Limitations}
+\label{sec:disc:limitations}
+
+The following limitations of the current framework should be considered
+when interpreting the results.
+
+\begin{description}
+  \item[Deterministic lead times.] The simulator uses a fixed, deterministic
+        transit time on each lane.  Real transport networks exhibit
+        stochastic lead times driven by congestion, weather, and carrier
+        variability.  Extending to stochastic lead times would increase
+        the optimal safety-stock levels and may change the cost-service
+        trade-off.
+
+  \item[Single DC layer.] The 1N3 topology has one warehouse serving
+        all three retailers.  More complex networks (two DCs, hub-and-spoke)
+        may exhibit different consolidation dynamics.
+
+  \item[CSV demand without forecasting.] Demand is read from historical
+        M5 CSVs rather than from an online demand forecast.  In practice,
+        policies are triggered by forecasts, not exact future demand, so
+        safety stock should account for forecast error.
+
+  \item[No lateral transshipment.] Retailers cannot transfer stock to
+        each other.  Lateral transshipment is a common strategy for
+        balancing inventory across retail locations and could substantially
+        reduce shortage costs.
+
+  \item[Single-SKU optimisation policy.] The main experiments use the
+        base-stock policy for all nodes and SKUs.  The framework supports
+        seven policies but the joint optimisation was not repeated for
+        alternative policy families (e.g.\ $(k,m)$-cycle for all nodes).
+
+  \item[Supply disruption experiment pending.] The analysis of how the
+        optimised configuration degrades under supplier outage (RQ2)
+        has not been conducted and is reserved for future work.
+\end{description}

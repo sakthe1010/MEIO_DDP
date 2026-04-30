@@ -1,0 +1,71 @@
+\chapter{Per-Experiment Policy Parameters}
+\label{appn:params}
+
+This appendix records the exact policy parameters used in the E0 and E3
+experiments.  All parameters are taken from the run directory
+\texttt{outputs/experiments\_20260424\_132309/}.
+
+%% -----------------------------------------------------------------------
+\section*{E0 --- Analytical Baseline}
+
+E0 uses newsvendor base-stock levels computed analytically from demand
+statistics and lead times.  No dispatch threshold is set (all edges use
+\texttt{min\_dispatch\_utilization = 0.0}).
+
+\begin{verbatim}
+note: "Analytical newsvendor base-stock levels, no dispatch threshold"
+\end{verbatim}
+
+Exact per-node, per-SKU base-stock levels are read directly from the
+config at runtime and are documented in \texttt{config/1n3\_5sku.json}.
+
+%% -----------------------------------------------------------------------
+\section*{E3 --- Joint Optimisation (Headline Result)}
+
+Base-stock levels (integers) and dispatch thresholds (fractions)
+optimised by Optuna TPE across 100 trials with a 92\% fill-rate
+constraint.  Best feasible trial: \#27.
+
+\subsection*{Base-stock levels (per node, per SKU)}
+
+\begin{table}[htbp]
+  \centering
+  \caption{E3 optimised base-stock levels.}
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    Node & SKU\_A & SKU\_B & SKU\_C & SKU\_D & SKU\_E \\
+    \midrule
+    W1 & 1177 &  791 & 1204 &  650 &  931 \\
+    W2 & 2788 & 1206 & 1066 & 1069 &  868 \\
+    R1 & 1319 &  575 &  724 &  569 &  457 \\
+    R2 & 1208 &  476 &  727 &  621 &  269 \\
+    R3 & 2509 &  687 & 1118 & 1376 &  826 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection*{Dispatch thresholds (per lane)}
+
+\begin{table}[htbp]
+  \centering
+  \caption{E3 optimised dispatch thresholds.}
+  \begin{tabular}{@{}lc@{}}
+    \toprule
+    Lane & min\_dispatch\_utilization \\
+    \midrule
+    Supplier $\to$ W1 & 0.800 \\
+    Supplier $\to$ W2 & 0.787 \\
+    W1 $\to$ R1       & 0.231 \\
+    W1 $\to$ R2       & 0.227 \\
+    W2 $\to$ R3       & 0.389 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The supplier-to-warehouse thresholds are high ($\sim$0.80), consolidating
+nearly full trucks on the long-haul leg.  The warehouse-to-retailer
+thresholds are moderate ($\sim$0.23--0.39), allowing more frequent
+smaller deliveries to maintain retailer service levels.
+
+Full machine-readable parameters are in
+\texttt{outputs/experiments\_20260424\_132309/E3/params.json}.

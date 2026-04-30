@@ -1,0 +1,101 @@
+\chapter{Configuration Schema Reference}
+\label{appn:config}
+
+This appendix documents the full JSON configuration schema accepted by
+the simulator.  Validated by \texttt{engine/config\_validator.py}; the
+reference scenario file is \texttt{config/1n3\_5sku.json}.
+
+%% -----------------------------------------------------------------------
+\section*{Top-Level Keys}
+
+\begin{description}
+  \item[\texttt{seed}] (integer) Random seed for reproducibility.
+  \item[\texttt{time\_horizon}] (integer) Number of simulation days.
+  \item[\texttt{skus}] (list of strings) SKU identifiers, e.g.\
+        \texttt{["SKU\_A", "SKU\_B", "SKU\_C", "SKU\_D", "SKU\_E"]}.
+  \item[\texttt{sku\_properties}] (object keyed by SKU) Per-SKU physical
+        properties.
+  \item[\texttt{nodes}] (list of node objects) One entry per stocking
+        location.
+  \item[\texttt{edges}] (list of edge objects) One entry per transport lane.
+  \item[\texttt{disruptions}] (list, optional) Supply disruption events.
+\end{description}
+
+%% -----------------------------------------------------------------------
+\section*{SKU Properties Object}
+
+\begin{verbatim}
+"sku_properties": {
+  "SKU_A": {
+    "item_id":         "SKU_A",
+    "volume_per_unit": 0.004,   // m^3 per unit
+    "weight_per_unit": 0.8      // kg per unit
+  },
+  ...
+}
+\end{verbatim}
+
+%% -----------------------------------------------------------------------
+\section*{Node Object}
+
+\begin{verbatim}
+{
+  "id":                "W1",
+  "type":              "warehouse",        // supplier | warehouse | retailer
+  "infinite_supply":   false,              // true for supplier node
+  "initial_inventory": {"SKU_A": 200, ...},
+  "holding_cost":      {"SKU_A": 0.05, ...},   // per unit per day
+  "shortage_cost":     {"SKU_A": 1.0,  ...},   // per unit per day
+  "order_cost_fixed":  10.0,                    // per order
+  "order_cost_per_unit": {"SKU_A": 0.01, ...}, // per unit ordered
+  "policy": {
+    "SKU_A": {
+      "type":             "base_stock",
+      "base_stock_level": 500
+    },
+    ...
+  }
+}
+\end{verbatim}
+
+\textbf{Supported policy types:}
+\texttt{base\_stock}, \texttt{ss}, \texttt{rq}, \texttt{order\_up\_to},
+\texttt{periodic\_review}, \texttt{km\_cycle}, \texttt{echelon\_stock}.
+
+%% -----------------------------------------------------------------------
+\section*{Edge Object}
+
+\begin{verbatim}
+{
+  "from": "W1",
+  "to":   "R1",
+  "max_dispatch_wait": 3,          // days before forced dispatch
+  "transport_options": [
+    {
+      "mode":                    "truck",
+      "capacity":                10.0,    // m^3 per vehicle
+      "weight_capacity":         8000.0,  // kg per vehicle (null = unconstrained)
+      "cost_full":               1500.0,  // $ per full load
+      "cost_half":               900.0,   // $ per half load (50-100% full)
+      "cost_quarter":            600.0,   // $ per quarter load (<50% full)
+      "lead_time":               1,       // transit days (deterministic)
+      "min_dispatch_utilization":0.0      // 0.0 = dispatch on any load
+    }
+  ]
+}
+\end{verbatim}
+
+%% -----------------------------------------------------------------------
+\section*{Disruption Object}
+
+\begin{verbatim}
+{
+  "node_id":   "Supplier",
+  "start_day": 100,
+  "duration":  14
+}
+\end{verbatim}
+
+During days 100--113 (inclusive), the \texttt{Supplier} node will not
+receive or dispatch any stock.  Orders placed by its children accumulate
+as backlog and are served when the node recovers.
