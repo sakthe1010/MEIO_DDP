@@ -66,7 +66,8 @@ def _check_non_negative(value: Any, name: str, context: str) -> None:
         _err(f"[{context}] '{name}' must be >= 0, got: {v}")
 
 
-VALID_POLICY_TYPES = {"base_stock", "sS", "order_up_to", "km_cycle", "periodic_review"}
+VALID_POLICY_TYPES = {"base_stock", "sS", "order_up_to", "km_cycle",
+                      "periodic_review", "rq", "echelon_stock"}
 VALID_NODE_TYPES   = {"supplier", "warehouse", "retailer"}
 VALID_DEMAND_TYPES = {"deterministic", "poisson", "csv"}
 VALID_LT_TYPES     = {"deterministic", "normal_int"}
@@ -158,6 +159,15 @@ def _validate_policy_block(policy_block: dict, skus: List[str], node_id: str) ->
             _check_required(pol, ["review_period", "order_up_to"], ctx)
             _check_positive(pol["review_period"], "review_period", ctx)
             _check_non_negative(pol["order_up_to"], "order_up_to", ctx)
+
+        elif ptype == "rq":
+            _check_required(pol, ["reorder_point", "order_qty"], ctx)
+            _check_non_negative(pol["reorder_point"], "reorder_point", ctx)
+            _check_positive(pol["order_qty"], "order_qty", ctx)
+
+        elif ptype == "echelon_stock":
+            _check_required(pol, ["echelon_base_stock_level"], ctx)
+            _check_non_negative(pol["echelon_base_stock_level"], "echelon_base_stock_level", ctx)
 
 
 def _validate_cost_field(value: Any, field: str, node_id: str, skus: List[str]) -> None:

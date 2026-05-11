@@ -1,0 +1,48 @@
+E6_echelon_stock — Policy = echelon_stock
+============================================================
+Total cost            :     486,393.94
+  Holding             :     114,282.13  (23.5%)
+  Transport           :     332,426.00  (68.3%)
+  Ordering            :      35,220.46  (7.2%)
+  Shortage            :       4,465.35  (0.9%)
+Fill rate             :         98.46%
+
+Fill rate by SKU:
+  SKU_A           100.00%
+  SKU_B           99.86%
+  SKU_C           94.30%
+  SKU_D           98.54%
+  SKU_E           99.68%
+
+Bullwhip ratio by node × SKU (order CV² / demand CV²):
+  Node            SKU                  BWE
+  R1              SKU_A              1.000
+  R1              SKU_B              1.000
+  R1              SKU_C              3.848
+  R1              SKU_D              1.000
+  R1              SKU_E             54.529
+  R2              SKU_A              1.000
+  R2              SKU_B              1.000
+  R2              SKU_C              9.185
+  R2              SKU_D              1.000
+  R2              SKU_E            123.638
+  R3              SKU_A              1.000
+  R3              SKU_B             20.167
+  R3              SKU_C              1.000
+  R3              SKU_D              1.000
+  R3              SKU_E              4.622
+  Supplier        SKU_A                nan
+  Supplier        SKU_B                nan
+  Supplier        SKU_C                nan
+  Supplier        SKU_D                nan
+  Supplier        SKU_E                nan
+  W1              SKU_A              1.000
+  W1              SKU_B              0.984
+  W1              SKU_C              1.133
+  W1              SKU_D              0.860
+  W1              SKU_E              0.972
+  W2              SKU_A              1.000
+  W2              SKU_B              1.000
+  W2              SKU_C              0.952
+  W2              SKU_D              1.000
+  W2              SKU_E              1.000

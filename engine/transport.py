@@ -165,7 +165,11 @@ class GreedyLoadPlanner:
         if remaining_vol > 1e-9:
             util = remaining_vol / C
 
-            if util >= 0.5:
+            if util >= 0.85:
+                # Near-full: bill at FTL rate (industry crossover ≥85%)
+                cost = option.cost_full
+                util_bucket = 1.0
+            elif util >= 0.5:
                 cost = option.cost_half
                 util_bucket = 0.5
             else:

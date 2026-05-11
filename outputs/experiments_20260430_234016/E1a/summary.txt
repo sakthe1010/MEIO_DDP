@@ -1,0 +1,52 @@
+E1a — Fixed Financial Dispatch Threshold (25%)
+============================================================
+Total cost            :     282,934.77
+  Holding             :      13,622.76  (4.8%)
+  Transport           :     156,753.00  (55.4%)
+  Ordering            :      38,832.06  (13.7%)
+  Shortage            :      73,726.95  (26.1%)
+Fill rate             :         75.09%
+
+vs E0 Baseline:
+  Cost vs E0 baseline : +32.1%
+  Fill rate vs E0     : -16.50 pp
+
+Fill rate by SKU:
+  SKU_A           74.50%
+  SKU_B           73.00%
+  SKU_C           76.40%
+  SKU_D           77.71%
+  SKU_E           73.55%
+
+Bullwhip ratio by node × SKU (order CV² / demand CV²):
+  Node            SKU                  BWE
+  R1              SKU_A              1.000
+  R1              SKU_B              1.000
+  R1              SKU_C              1.000
+  R1              SKU_D              1.000
+  R1              SKU_E              1.000
+  R2              SKU_A              1.000
+  R2              SKU_B              1.000
+  R2              SKU_C              1.000
+  R2              SKU_D              1.000
+  R2              SKU_E              1.000
+  R3              SKU_A              1.000
+  R3              SKU_B              1.000
+  R3              SKU_C              1.000
+  R3              SKU_D              1.000
+  R3              SKU_E              1.000
+  Supplier        SKU_A                nan
+  Supplier        SKU_B                nan
+  Supplier        SKU_C                nan
+  Supplier        SKU_D                nan
+  Supplier        SKU_E                nan
+  W1              SKU_A              1.001
+  W1              SKU_B              1.003
+  W1              SKU_C              1.001
+  W1              SKU_D              1.004
+  W1              SKU_E              0.999
+  W2              SKU_A              0.998
+  W2              SKU_B              0.998
+  W2              SKU_C              1.000
+  W2              SKU_D              1.002
+  W2              SKU_E              1.000

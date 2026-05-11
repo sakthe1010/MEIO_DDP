@@ -1,0 +1,52 @@
+E2 — Inventory-Only Optimization
+============================================================
+Total cost            :     458,890.33
+  Holding             :      86,075.72  (18.8%)
+  Transport           :     331,650.00  (72.3%)
+  Ordering            :      38,832.06  (8.5%)
+  Shortage            :       2,332.55  (0.5%)
+Fill rate             :         99.23%
+
+vs E0 Baseline:
+  Cost vs E0 baseline : -10.1%
+  Fill rate vs E0     : +7.64 pp
+
+Fill rate by SKU:
+  SKU_A           99.79%
+  SKU_B           99.07%
+  SKU_C           98.11%
+  SKU_D           99.07%
+  SKU_E           100.00%
+
+Bullwhip ratio by node × SKU (order CV² / demand CV²):
+  Node            SKU                  BWE
+  R1              SKU_A              1.000
+  R1              SKU_B              1.000
+  R1              SKU_C              1.000
+  R1              SKU_D              1.000
+  R1              SKU_E              1.000
+  R2              SKU_A              1.000
+  R2              SKU_B              1.000
+  R2              SKU_C              1.000
+  R2              SKU_D              1.000
+  R2              SKU_E              1.000
+  R3              SKU_A              1.000
+  R3              SKU_B              1.000
+  R3              SKU_C              1.000
+  R3              SKU_D              1.000
+  R3              SKU_E              1.000
+  Supplier        SKU_A                nan
+  Supplier        SKU_B                nan
+  Supplier        SKU_C                nan
+  Supplier        SKU_D                nan
+  Supplier        SKU_E                nan
+  W1              SKU_A              1.001
+  W1              SKU_B              1.003
+  W1              SKU_C              1.001
+  W1              SKU_D              1.004
+  W1              SKU_E              0.999
+  W2              SKU_A              0.998
+  W2              SKU_B              0.998
+  W2              SKU_C              1.000
+  W2              SKU_D              1.002
+  W2              SKU_E              1.000

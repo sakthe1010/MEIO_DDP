@@ -1,0 +1,48 @@
+E8_lambda_1e+03 — Bullwhip-aware (λ=1e+03)
+============================================================
+Total cost            :     290,180.24
+  Holding             :      94,300.33  (32.5%)
+  Transport           :     141,850.00  (48.9%)
+  Ordering            :      38,832.06  (13.4%)
+  Shortage            :      15,197.85  (5.2%)
+Fill rate             :         95.51%
+
+Fill rate by SKU:
+  SKU_A           93.00%
+  SKU_B           99.94%
+  SKU_C           95.08%
+  SKU_D           98.67%
+  SKU_E           94.02%
+
+Bullwhip ratio by node × SKU (order CV² / demand CV²):
+  Node            SKU                  BWE
+  R1              SKU_A              1.000
+  R1              SKU_B              1.000
+  R1              SKU_C              1.000
+  R1              SKU_D              1.000
+  R1              SKU_E              1.000
+  R2              SKU_A              1.000
+  R2              SKU_B              1.000
+  R2              SKU_C              1.000
+  R2              SKU_D              1.000
+  R2              SKU_E              1.000
+  R3              SKU_A              1.000
+  R3              SKU_B              1.000
+  R3              SKU_C              1.000
+  R3              SKU_D              1.000
+  R3              SKU_E              1.000
+  Supplier        SKU_A                nan
+  Supplier        SKU_B                nan
+  Supplier        SKU_C                nan
+  Supplier        SKU_D                nan
+  Supplier        SKU_E                nan
+  W1              SKU_A              1.001
+  W1              SKU_B              1.003
+  W1              SKU_C              1.001
+  W1              SKU_D              1.004
+  W1              SKU_E              0.999
+  W2              SKU_A              0.998
+  W2              SKU_B              0.998
+  W2              SKU_C              1.000
+  W2              SKU_D              1.002
+  W2              SKU_E              1.000

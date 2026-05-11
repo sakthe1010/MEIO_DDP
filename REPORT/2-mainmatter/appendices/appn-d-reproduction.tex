@@ -1,9 +1,10 @@
 \chapter{Reproducing the Results}
 \label{appn:reproduction}
 
-All results in this thesis were produced with the code in the project
-repository.  The following commands reproduce each experiment from scratch.
-A Python 3.10+ virtual environment with \texttt{pip install -r requirements.txt}
+All results in this thesis were produced with the code available at
+\url{https://github.com/sakthe1010/MEIO\_DDP}.  The following commands
+reproduce each experiment from scratch.
+A Python 3.10+ virtual environment with pip install -r requirements.txt
 is assumed.
 
 %% -----------------------------------------------------------------------
@@ -11,6 +12,8 @@ is assumed.
 
 \begin{verbatim}
 # Clone repository and install dependencies
+git clone https://github.com/sakthe1010/MEIO_DDP.git
+cd MEIO_DDP
 pip install -r requirements.txt
 \end{verbatim}
 
@@ -29,31 +32,45 @@ python scripts/run_simulation.py --config config/1n3_5sku.json
 \end{verbatim}
 
 %% -----------------------------------------------------------------------
-\section*{Full Experiment Suite (E0--E4)}
+\section*{Full Experiment Suite (E0--E9)}
 
 \begin{verbatim}
 python scripts/run_experiments.py \
     --config config/1n3_5sku.json \
+    --experiments E0 E1a E1b E2 E3 E3_per_sku E4 E5 E6 E7 E8 E9 \
     --trials 100 \
     --warmup 30
 \end{verbatim}
 
-Output is written to \texttt{outputs/experiments\_\textlangle ts\textrangle /}.
+Output is written to outputs/experiments\_\textlangle ts\textrangle /.
 
 %% -----------------------------------------------------------------------
 \section*{Run Specific Experiments}
 
 \begin{verbatim}
-# Run only E0 and E3
+# Core optimisation experiments only
 python scripts/run_experiments.py \
     --config config/1n3_5sku.json \
     --experiments E0 E3 \
     --trials 100
 
-# Run only E4 (Pareto frontier)
+# Pareto frontier
 python scripts/run_experiments.py \
     --config config/1n3_5sku.json \
     --experiments E4 \
+    --trials 100
+
+# Extension experiments (disruption, policy comparison,
+# forecast sensitivity, bullwhip-aware)
+python scripts/run_experiments.py \
+    --config config/1n3_5sku.json \
+    --experiments E5 E6 E7 E8 \
+    --trials 100
+
+# Stochastic demand robustness (requires E3 params)
+python scripts/run_experiments.py \
+    --config config/1n3_5sku.json \
+    --experiments E9 \
     --trials 100
 \end{verbatim}
 
@@ -65,10 +82,10 @@ python scripts/plot_results.py \
     --expdir outputs/experiments_<timestamp>/
 \end{verbatim}
 
-Produces PNG plots in \texttt{outputs/experiments\_\textlangle ts\textrangle /plots/}:
-\texttt{cost\_breakdown.png}, \texttt{fill\_rate.png},
-\texttt{inventory\_ts.png}, \texttt{orders\_ts.png},
-\texttt{bullwhip.png}, \texttt{pareto\_frontier.png}.
+Produces PNG plots in outputs/experiments\_\textlangle ts\textrangle /plots/:
+cost\_breakdown.png, fill\_rate.png,
+inventory\_ts.png, orders\_ts.png,
+bullwhip.png, pareto\_frontier.png.
 
 %% -----------------------------------------------------------------------
 \section*{Multi-Seed Statistical Validation}
@@ -77,11 +94,13 @@ Produces PNG plots in \texttt{outputs/experiments\_\textlangle ts\textrangle /pl
 python scripts/multi_seed_validation.py \
     --config config/1n3_5sku.json \
     --params outputs/experiments_<timestamp>/E3/params.json \
-    --seeds 10
+    --seeds 5
 \end{verbatim}
 
-Reports 95\% confidence intervals on cost and fill rate, and Welch's
-$t$-test significance for the E3 vs E0 comparison.
+Reports cross-seed mean and standard deviation of cost and fill rate.
+Under the canonical deterministic M5 configuration, cross-seed variance
+is zero; confidence intervals become informative only when Poisson or
+stochastic lead-time demand is used.
 
 %% -----------------------------------------------------------------------
 \section*{Build Config from CSV}
@@ -97,8 +116,9 @@ python scripts/run_simulation.py \
 %% -----------------------------------------------------------------------
 \section*{Exact Run Used in Thesis}
 
-The results reported in Chapter~\ref{chap:results} are from the run
-directory \texttt{outputs/experiments\_20260424\_132309/}.  The precise
-random seed and trial count are recorded in
-\texttt{outputs/experiments\_20260424\_132309/E*/params.json} and can be
-re-used to reproduce the exact results.
+The results reported in Chapter~\ref{chap:results} were produced with
+random seed 42, 100 Optuna trials, and 30-day warm-up on the
+\texttt{config/1n3\_5sku.json} configuration.  The precise trial-level
+parameters are saved in the \texttt{E*/params.json} files of each
+experiment output directory and can be used to reproduce the exact
+results.

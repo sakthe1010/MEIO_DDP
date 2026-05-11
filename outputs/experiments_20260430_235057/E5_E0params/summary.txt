@@ -1,0 +1,48 @@
+E5_E0params — Disruption — E0 params
+============================================================
+Total cost            :   2,577,516.45
+  Holding             :     178,211.41  (6.9%)
+  Transport           :     297,246.00  (11.5%)
+  Ordering            :      32,438.00  (1.3%)
+  Shortage            :   2,069,621.05  (80.3%)
+Fill rate             :         73.83%
+
+Fill rate by SKU:
+  SKU_A           75.27%
+  SKU_B           66.57%
+  SKU_C           70.10%
+  SKU_D           77.74%
+  SKU_E           79.34%
+
+Bullwhip ratio by node × SKU (order CV² / demand CV²):
+  Node            SKU                  BWE
+  R1              SKU_A             60.424
+  R1              SKU_B             29.017
+  R1              SKU_C             26.479
+  R1              SKU_D             55.059
+  R1              SKU_E             57.654
+  R2              SKU_A             82.759
+  R2              SKU_B             22.082
+  R2              SKU_C             20.727
+  R2              SKU_D             58.004
+  R2              SKU_E             57.498
+  R3              SKU_A              1.000
+  R3              SKU_B              1.000
+  R3              SKU_C              1.000
+  R3              SKU_D              1.000
+  R3              SKU_E              1.000
+  Supplier        SKU_A                nan
+  Supplier        SKU_B                nan
+  Supplier        SKU_C                nan
+  Supplier        SKU_D                nan
+  Supplier        SKU_E                nan
+  W1              SKU_A             12.646
+  W1              SKU_B             12.285
+  W1              SKU_C             12.533
+  W1              SKU_D             12.761
+  W1              SKU_E             12.486
+  W2              SKU_A              0.998
+  W2              SKU_B              0.998
+  W2              SKU_C              1.000
+  W2              SKU_D              1.002
+  W2              SKU_E              1.000

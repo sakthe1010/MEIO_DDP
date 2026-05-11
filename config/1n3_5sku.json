@@ -1,6 +1,6 @@
 {
   "seed": 42,
-  "time_horizon": 1913,
+  "time_horizon": 365,
   "skus": [
     "SKU_A",
     "SKU_B",
@@ -425,7 +425,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_A/R1.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -436,7 +437,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_A/R2.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -447,7 +449,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_A/R3.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -458,7 +461,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_B/R1.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -469,7 +473,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_B/R2.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -480,7 +485,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_B/R3.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -491,7 +497,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_C/R1.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -502,7 +509,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_C/R2.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -513,7 +521,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_C/R3.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -524,7 +533,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_D/R1.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -535,7 +545,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_D/R2.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -546,7 +557,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_D/R3.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -557,7 +569,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_E/R1.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -568,7 +581,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_E/R2.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     },
     {
@@ -579,7 +593,8 @@
         "path": "dataset/m5_dataset/processed/retailers_multisku/SKU_E/R3.csv",
         "date_col": "date",
         "qty_col": "quantity",
-        "strategy": "clip"
+        "strategy": "clip",
+        "start_index": 1548
       }
     }
   ]

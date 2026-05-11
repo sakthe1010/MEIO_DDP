@@ -1,5 +1,5 @@
 %% IITM Dual Degree Project (DDP) Thesis
-%% Author: Sakthe Balan
+%% Author: Sakthe Balan G K
 %% Topic: A Digital-Twin Simulation Framework for Joint Inventory and
 %%        Transport Optimisation in Multi-Echelon Supply Chains
 \documentclass
@@ -9,6 +9,7 @@
 
 \usepackage{multirow}
 \usepackage{booktabs}
+\usepackage{float}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{listings}
@@ -20,6 +21,13 @@
 \usepackage{subcaption}
 \usepackage{hyperref}
 \usepackage{setspace}
+\usepackage{enumitem}
+% KOMA-script ≥3.28 writes \MakeUppercase []{text} in .toc entries; patch to accept the [].
+\let\iitmMakeUppercase\MakeUppercase
+\renewcommand\MakeUppercase[2][]{\iitmMakeUppercase{#2}}
+\AtBeginEnvironment{enumerate}{\doublespacing}
+\AtBeginEnvironment{itemize}{\doublespacing}
+\setlist{topsep=0.5\baselineskip, itemsep=0pt, parsep=0pt, partopsep=0pt}
 
 \lstset{
   basicstyle=\ttfamily\small,
@@ -32,7 +40,7 @@
 }
 
 \dissertationDepartment      {Department of Data Science and Artificial Intelligence}
-\dissertationAuthorName      {Sakthe Balan}
+\dissertationAuthorName      {Sakthe Balan G K}
 \dissertationDateOfBirth     {[Date of Birth]}
 \dissertationDegree          {Interdisciplinary Dual Degree Programme}
 \dissertationTitle           {A Digital-Twin Simulation Framework for Joint
@@ -42,23 +50,18 @@
 \dissertationYear            {2026}
 \dissertationCertificateDate {May 2026}
 \dissertationType            {Project Report}
-\dissertationGuides          {[Thesis Guide Name]}
+\dissertationGuides          {Dr. Sivaraman Ambikasaran and Dr. Sri Vallabha Deevi}
 \dissertationImage           {}
 
 \setupGlossaryAbbreviationsDefinitions
 \begin{document}
 \onehalfspacing
   \prematter
-      \input 0-prematter/pre-quote
-      \input 0-prematter/pre-dedication
       \printCertificate
-      \input 0-prematter/pre-list-of-publications
 %%
 %%
 %%
   \begin{FrontMatter}
-      \printGlossaryAndAbbreviations
-      \printNotation
   \end{FrontMatter}
 %%
 %%
@@ -71,7 +74,6 @@
       \input 2-mainmatter/chapters/chap-05-optimization
       \input 2-mainmatter/chapters/chap-06-methodology
       \input 2-mainmatter/chapters/chap-07-results
-      \input 2-mainmatter/chapters/chap-08-discussion
       \input 2-mainmatter/chapters/chap-09-conclusion
 
       \appendix
@@ -85,7 +87,5 @@
 %%
   \begin{BackMatter}
       \printBibliographyReferences{references.bib}
-      \printCV
-      \printCommittee
   \end{BackMatter}
 \end{document}

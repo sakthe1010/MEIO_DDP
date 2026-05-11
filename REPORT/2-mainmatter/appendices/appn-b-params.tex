@@ -1,9 +1,5 @@
-\chapter{Per-Experiment Policy Parameters}
+\chapter{Experiment Parameters and Runtimes}
 \label{appn:params}
-
-This appendix records the exact policy parameters used in the E0 and E3
-experiments.  All parameters are taken from the run directory
-\texttt{outputs/experiments\_20260424\_132309/}.
 
 %% -----------------------------------------------------------------------
 \section*{E0 --- Analytical Baseline}
@@ -12,60 +8,140 @@ E0 uses newsvendor base-stock levels computed analytically from demand
 statistics and lead times.  No dispatch threshold is set (all edges use
 \texttt{min\_dispatch\_utilization = 0.0}).
 
-\begin{verbatim}
-note: "Analytical newsvendor base-stock levels, no dispatch threshold"
-\end{verbatim}
-
-Exact per-node, per-SKU base-stock levels are read directly from the
-config at runtime and are documented in \texttt{config/1n3\_5sku.json}.
-
 %% -----------------------------------------------------------------------
-\section*{E3 --- Joint Optimisation (Headline Result)}
+\section*{E3 --- Joint Optimisation}
 
 Base-stock levels (integers) and dispatch thresholds (fractions)
 optimised by Optuna TPE across 100 trials with a 92\% fill-rate
-constraint.  Best feasible trial: \#27.
+constraint.  Best feasible trial: \#62.
 
 \subsection*{Base-stock levels (per node, per SKU)}
 
-\begin{table}[htbp]
+\begin{table}[H]
   \centering
   \caption{E3 optimised base-stock levels.}
   \begin{tabular}{@{}lccccc@{}}
     \toprule
     Node & SKU\_A & SKU\_B & SKU\_C & SKU\_D & SKU\_E \\
     \midrule
-    W1 & 1177 &  791 & 1204 &  650 &  931 \\
-    W2 & 2788 & 1206 & 1066 & 1069 &  868 \\
-    R1 & 1319 &  575 &  724 &  569 &  457 \\
-    R2 & 1208 &  476 &  727 &  621 &  269 \\
-    R3 & 2509 &  687 & 1118 & 1376 &  826 \\
+    W1 & 1639 & 1022 & 1172 &  595 & 1563 \\
+    W2 & 3703 &  769 & 2005 &  832 & 1279 \\
+    R1 &  929 &  567 & 1028 &  504 &  249 \\
+    R2 & 1226 &  781 &  757 &  442 &  584 \\
+    R3 & 1620 &  653 & 1607 &  939 &  979 \\
     \bottomrule
   \end{tabular}
 \end{table}
-
+\vspace{-1em}
 \subsection*{Dispatch thresholds (per lane)}
 
-\begin{table}[htbp]
+\begin{table}[H]
   \centering
   \caption{E3 optimised dispatch thresholds.}
   \begin{tabular}{@{}lc@{}}
     \toprule
-    Lane & min\_dispatch\_utilization \\
+    Lane & \texttt{min\_dispatch\_utilization} \\
     \midrule
-    Supplier $\to$ W1 & 0.800 \\
-    Supplier $\to$ W2 & 0.787 \\
-    W1 $\to$ R1       & 0.231 \\
-    W1 $\to$ R2       & 0.227 \\
-    W2 $\to$ R3       & 0.389 \\
+    Supplier $\to$ W1 & 0.792 \\
+    Supplier $\to$ W2 & 0.361 \\
+    W1 $\to$ R1       & 0.635 \\
+    W1 $\to$ R2       & 0.470 \\
+    W2 $\to$ R3       & 0.818 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-The supplier-to-warehouse thresholds are high ($\sim$0.80), consolidating
-nearly full trucks on the long-haul leg.  The warehouse-to-retailer
-thresholds are moderate ($\sim$0.23--0.39), allowing more frequent
-smaller deliveries to maintain retailer service levels.
+The long-haul Supplier$\to$W1 lane and the W2$\to$R3 lane carry the
+highest thresholds ($\sim$0.79--0.82), consolidating nearly full trucks.
+The Supplier$\to$W2 lane operates at a lower threshold (0.36), reflecting
+the smaller demand served by W2.  Warehouse-to-retailer thresholds
+(0.47--0.82) balance consolidation against service frequency.
 
-Full machine-readable parameters are in
-\texttt{outputs/experiments\_20260424\_132309/E3/params.json}.
+%% -----------------------------------------------------------------------
+\section*{E9 --- Stochastic Demand Robustness}
+
+E9 holds the E3 parameters fixed and evaluates them under Poisson demand,
+replacing each M5 demand series with a Poisson generator whose rate
+$\lambda$ equals the mean daily demand over the 365-day evaluation window.
+Ten independently seeded realisations are run; no re-optimisation is
+performed.
+
+\begin{table}[H]
+  \centering
+  \caption{E9 stochastic robustness results (10 Poisson seeds, E3 params).}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    Metric & Mean & Std \\
+    \midrule
+    Total cost (\$) & 242{,}000 & 1{,}000 \\
+    Fill rate (\%)  & 99.95     & 0.03    \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The 92\% fill-rate target is met in all ten realisations, confirming that
+the deterministically-optimised E3 parameters transfer to stochastic demand
+without re-optimisation.
+
+%% -----------------------------------------------------------------------
+
+\section*{Empirical Runtimes}
+\label{appn:runtimes}
+
+All timings were measured on an Intel Core i7-14700HX (20 cores,
+single socket) running Python~3.12 with Optuna~3.x in single-threaded
+mode.  Wall-clock time was captured with \texttt{time.perf\_counter()}
+around each optimiser or simulation call; file I/O and plotting are
+excluded.
+
+\subsection*{Per-trial cost by optimisation mode}
+
+\begin{table}[H]
+  \centering
+  \caption{Per-trial wall-clock time (20-trial sample, averaged).}
+  \label{tab:rt-per-trial}
+  \begin{tabular}{@{}lcr@{}}
+    \toprule
+    Mode & Dimensions & ms\,/\,trial \\
+    \midrule
+    Transport-only & 5  & 127 \\
+    Inventory-only & 25 & 140 \\
+    Joint          & 30 & 131 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+Per-trial cost is flat from 5 to 30 dimensions (127--140\,ms),
+confirming that TPE bookkeeping overhead is negligible relative to the
+365-day simulation evaluation ($\approx130$\,ms per run).
+
+\subsection*{Per-experiment runtimes at the canonical trial budget}
+
+\begin{table}[H]
+  \centering
+  \caption{Per-experiment wall-clock time (\texttt{--trials~100}, single-threaded).}
+  \label{tab:rt-per-exp}
+  \begin{tabular}{@{}llcrr@{}}
+    \toprule
+    Experiment & Mode & Dims & Sim.\ evals & Wall-clock (s) \\
+    \midrule
+    E0  & Baseline (1 sim)                 & ---    &    1 &  $<1$ \\
+    E1a & Fixed threshold (1 sim)          & ---    &    1 &  $<1$ \\
+    E1b & Transport-only                   & 5      &  100 &   13  \\
+    E2  & Inventory-only                   & 25     &  100 &   14  \\
+    E3  & Joint                            & 30     &  100 &   13  \\
+    E3\_per\_sku & Joint (per-SKU)         & 30     &  100 &   13  \\
+    E4  & NSGA-II + sweep                  & 30     & 1000 &  130  \\
+    E5  & Disruption (2 sims)              & ---    &    2 &  $<1$ \\
+    E6  & Policy search (4$\times$100)     & 30--35 &  400 &   53  \\
+    E7  & Forecast sweep (5 sims)          & ---    &    5 &    1  \\
+    E8  & Bullwhip-aware (5$\times$100)    & 30     &  500 &   65  \\
+    E9  & Stochastic (10 sims)             & ---    &   10 &    1  \\
+    \midrule
+    \textbf{Full suite} & & & \textbf{$\sim$2220} & \textbf{$\sim$305} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The full E0--E9 suite completes in approximately \textbf{5 minutes} on
+a laptop CPU.  Peak heap allocation per evaluation is \textbf{11.4\,MB};
+total process memory stays below 200\,MB throughout the full suite.

@@ -4,36 +4,45 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {3.1}{\ignorespaces CSV input files and their roles in the configuration pipeline.}}{21}{table.caption.19}%
+\contentsline {table}{\numberline {3.1}{\ignorespaces CSV input files and their roles in the configuration pipeline.}}{25}{table.caption.16}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {4.1}{\ignorespaces Summary of the seven implemented inventory policies.}}{30}{table.caption.22}%
+\contentsline {table}{\numberline {4.1}{\ignorespaces Summary of the seven implemented inventory policies.}}{31}{table.caption.17}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {5.1}{\ignorespaces Search space dimensionality by optimisation mode (1N3 topology, 5 SKUs).}}{35}{table.caption.23}%
+\contentsline {table}{\numberline {5.1}{\ignorespaces Search space dimensionality by optimisation mode (1N3 with $N=2$ warehouses, 5 SKUs).}}{38}{table.caption.18}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {6.1}{\ignorespaces Preliminary validation experiments: scope and purpose.}}{37}{table.caption.24}%
-\contentsline {table}{\numberline {6.2}{\ignorespaces Main experiment simulation parameters.}}{39}{table.caption.25}%
-\contentsline {table}{\numberline {6.3}{\ignorespaces Main optimisation experiments: design and hypothesis.}}{41}{table.caption.26}%
+\contentsline {table}{\numberline {6.1}{\ignorespaces Preliminary validation experiments: scope and purpose.}}{40}{table.caption.23}%
+\contentsline {table}{\numberline {6.2}{\ignorespaces Network topologies and demand configurations used across all experiments.}}{40}{table.caption.24}%
+\contentsline {table}{\numberline {6.3}{\ignorespaces Deterministic lead times in the canonical 1N3 configuration.}}{42}{table.caption.25}%
+\contentsline {table}{\numberline {6.4}{\ignorespaces Main experiment simulation parameters.}}{42}{table.caption.26}%
+\contentsline {table}{\numberline {6.5}{\ignorespaces Main optimisation experiments: design and hypothesis or finding.}}{45}{table.caption.27}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {7.1}{\ignorespaces EV4 capacity scaling results (single-SKU 2W $\times $ 3R topology).}}{44}{table.caption.27}%
-\contentsline {table}{\numberline {7.2}{\ignorespaces E0 cost decomposition and fill rate.}}{45}{table.caption.28}%
-\contentsline {table}{\numberline {7.3}{\ignorespaces E1a cost decomposition and fill rate.}}{45}{table.caption.29}%
-\contentsline {table}{\numberline {7.4}{\ignorespaces E1b cost decomposition and fill rate.}}{46}{table.caption.30}%
-\contentsline {table}{\numberline {7.5}{\ignorespaces E2 cost decomposition and fill rate.}}{47}{table.caption.31}%
-\contentsline {table}{\numberline {7.6}{\ignorespaces E3 cost decomposition and fill rate (headline result).}}{48}{table.caption.32}%
-\contentsline {table}{\numberline {7.7}{\ignorespaces Cost composition shift from E0 to E3.}}{48}{table.caption.33}%
-\contentsline {table}{\numberline {7.8}{\ignorespaces E3 fill rates by SKU.}}{49}{table.caption.34}%
-\contentsline {table}{\numberline {7.9}{\ignorespaces E4 Pareto frontier: cost vs fill rate under joint optimisation.}}{49}{table.caption.35}%
-\contentsline {table}{\numberline {7.10}{\ignorespaces Summary of all main optimisation experiments.}}{50}{table.caption.37}%
-\contentsline {table}{\numberline {7.11}{\ignorespaces Bullwhip ratios (order CV$^2$ / demand CV$^2$) under E0 and E3. Ratios $> 1$ indicate amplification.}}{51}{table.caption.38}%
+\contentsline {table}{\numberline {7.1}{\ignorespaces EV4 capacity scaling results (single-SKU 2W $\times $ 3R topology).}}{52}{table.caption.32}%
+\contentsline {table}{\numberline {7.2}{\ignorespaces E0 cost decomposition and fill rate.}}{52}{table.caption.33}%
+\contentsline {table}{\numberline {7.3}{\ignorespaces E1a cost decomposition and fill rate.}}{53}{table.caption.34}%
+\contentsline {table}{\numberline {7.4}{\ignorespaces E1b cost decomposition and fill rate.}}{54}{table.caption.35}%
+\contentsline {table}{\numberline {7.5}{\ignorespaces E2 cost decomposition and fill rate.}}{55}{table.caption.36}%
+\contentsline {table}{\numberline {7.6}{\ignorespaces E3 cost decomposition and fill rate.}}{55}{table.caption.37}%
+\contentsline {table}{\numberline {7.7}{\ignorespaces Cost composition shift from E0 to E3.}}{56}{table.caption.38}%
+\contentsline {table}{\numberline {7.8}{\ignorespaces E3 fill rates by SKU.}}{56}{table.caption.39}%
+\contentsline {table}{\numberline {7.9}{\ignorespaces E3\_per\_sku cost decomposition and fill rate.}}{57}{table.caption.40}%
+\contentsline {table}{\numberline {7.10}{\ignorespaces E4 NSGA-II Pareto frontier (primary).}}{58}{table.caption.41}%
+\contentsline {table}{\numberline {7.11}{\ignorespaces E5 disruption robustness — same 14-day W1 outage, two parameter sets.}}{59}{table.caption.42}%
+\contentsline {table}{\numberline {7.12}{\ignorespaces E6 policy comparison --- each policy jointly optimises inventory parameters and dispatch thresholds.}}{60}{table.caption.44}%
+\contentsline {table}{\numberline {7.13}{\ignorespaces E7 forecast sensitivity sweep.}}{62}{table.caption.46}%
+\contentsline {table}{\numberline {7.14}{\ignorespaces E8 bullwhip-aware sweep.}}{63}{table.caption.48}%
+\contentsline {table}{\numberline {7.15}{\ignorespaces E9 stochastic demand robustness — E3 params evaluated over 10 Poisson seeds.}}{64}{table.caption.49}%
+\contentsline {table}{\numberline {7.16}{\ignorespaces Transport cost ratio sensitivity: E0 (analytical baseline) and E3 (joint optimisation) at three cost multipliers.}}{65}{table.caption.50}%
+\contentsline {table}{\numberline {7.17}{\ignorespaces Summary of core optimisation, disruption, and policy-comparison experiments (E7--E9 summarised in their respective tables above).}}{66}{table.caption.51}%
+\contentsline {table}{\numberline {7.18}{\ignorespaces Per-echelon bullwhip ratios for the canonical experiments (median across SKUs).}}{68}{table.caption.54}%
+\contentsline {table}{\numberline {7.19}{\ignorespaces Multi-seed determinism check for E3 best parameters (canonical deterministic scenario).}}{69}{table.caption.55}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\addvspace {10\p@ }
-\contentsline {table}{\numberline {B.1}{\ignorespaces E3 optimised base-stock levels.}}{66}{table.caption.47}%
-\contentsline {table}{\numberline {B.2}{\ignorespaces E3 optimised dispatch thresholds.}}{66}{table.caption.49}%
-\addvspace {10\p@ }
-\contentsline {table}{\numberline {C.1}{\ignorespaces Test modules and their coverage areas.}}{68}{table.caption.51}%
-\addvspace {10\p@ }
+\contentsline {table}{\numberline {B.1}{\ignorespaces E3 optimised base-stock levels.}}{81}{table.caption.64}%
+\contentsline {table}{\numberline {B.2}{\ignorespaces E3 optimised dispatch thresholds.}}{81}{table.caption.66}%
+\contentsline {table}{\numberline {B.3}{\ignorespaces E9 stochastic robustness results (10 Poisson seeds, E3 params).}}{82}{table.caption.68}%
+\contentsline {table}{\numberline {B.4}{\ignorespaces Per-trial wall-clock time (20-trial sample, averaged).}}{83}{table.caption.71}%
+\contentsline {table}{\numberline {B.5}{\ignorespaces Per-experiment wall-clock time (\texttt {--trials~100}, single-threaded).}}{83}{table.caption.73}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }

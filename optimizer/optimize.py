@@ -161,6 +161,32 @@ def evaluate(cfg: dict, volume_per_unit: dict) -> Tuple[float, float]:
     return total_cost, fill_rate
 
 
+def evaluate_with_sku_fills(cfg: dict, volume_per_unit: dict) -> Tuple[float, float, Dict[str, float]]:
+    """Same as evaluate, but also returns per-SKU fill rates."""
+    net, demand_by_node, T = build_from_config(cfg)
+    sim = Simulator(
+        network=net, demand_by_node=demand_by_node, T=T,
+        order_processing_delay=1, volume_per_unit=volume_per_unit,
+    )
+    sim.run()
+    total_cost = sum(m.total_cost for m in sim.metrics)
+    sku_dem: Dict[str, float] = {}
+    sku_ful: Dict[str, float] = {}
+    total_dem = 0.0
+    total_ful = 0.0
+    for m in sim.metrics:
+        sku_dem[m.sku] = sku_dem.get(m.sku, 0.0) + m.demand
+        sku_ful[m.sku] = sku_ful.get(m.sku, 0.0) + m.fulfilled_external
+        total_dem += m.demand
+        total_ful += m.fulfilled_external
+    fill_rate = total_ful / total_dem if total_dem > 0 else 1.0
+    sku_fills = {
+        sku: (sku_ful[sku] / sku_dem[sku] if sku_dem[sku] > 0 else 1.0)
+        for sku in sku_dem
+    }
+    return total_cost, fill_rate, sku_fills
+
+
 # ============================================================
 # Optuna objective factory
 # ============================================================
@@ -172,6 +198,7 @@ def make_objective(
     min_fill_rate: float,
     analytical_levels: Dict[Tuple[str, str], int],
     analytical_dispatch: Dict[str, float],
+    per_sku_constraint: bool = False,
 ):
     PENALTY_PER_PCT = 1_000_000   # cost penalty per 1% fill rate shortfall
 
@@ -190,11 +217,23 @@ def make_objective(
                 key = f"D_{route_id}"
                 params[key] = trial.suggest_float(key, DISPATCH_LOWER, DISPATCH_UPPER)
 
-        cfg_trial  = _apply_params(base_cfg, params)
-        total_cost, fill_rate = evaluate(cfg_trial, volume_per_unit)
+        cfg_trial = _apply_params(base_cfg, params)
 
-        shortfall = max(0.0, min_fill_rate - fill_rate)
-        penalty   = shortfall * 100 * PENALTY_PER_PCT
+        if per_sku_constraint:
+            total_cost, fill_rate, sku_fills = evaluate_with_sku_fills(
+                cfg_trial, volume_per_unit
+            )
+            penalty = 0.0
+            for sku, f in sku_fills.items():
+                shortfall = max(0.0, min_fill_rate - f)
+                penalty += shortfall * 100 * PENALTY_PER_PCT
+            trial.set_user_attr("sku_fills", sku_fills)
+            min_sku_fill = min(sku_fills.values()) if sku_fills else fill_rate
+            trial.set_user_attr("min_sku_fill", min_sku_fill)
+        else:
+            total_cost, fill_rate = evaluate(cfg_trial, volume_per_unit)
+            shortfall = max(0.0, min_fill_rate - fill_rate)
+            penalty   = shortfall * 100 * PENALTY_PER_PCT
 
         trial.set_user_attr("fill_rate",  fill_rate)
         trial.set_user_attr("total_cost", total_cost)
@@ -220,6 +259,7 @@ def run_optimizer(
     # --- programmatic use: pass pre-loaded config instead of path ---
     base_cfg: Optional[dict] = None,
     volume_per_unit: Optional[dict] = None,
+    per_sku_constraint: bool = False,
 ) -> OptimizationResult:
     """
     Run the optimizer.
@@ -300,6 +340,7 @@ def run_optimizer(
         min_fill_rate=min_fill_rate,
         analytical_levels=analytical_levels,
         analytical_dispatch=analytical_dispatch,
+        per_sku_constraint=per_sku_constraint,
     )
 
     if verbose:
@@ -314,10 +355,16 @@ def run_optimizer(
     )
 
     # ── best feasible trial ───────────────────────────────────────────────────
-    feasible = [
-        t for t in study.trials
-        if t.user_attrs.get("fill_rate", 0) >= min_fill_rate
-    ]
+    if per_sku_constraint:
+        feasible = [
+            t for t in study.trials
+            if t.user_attrs.get("min_sku_fill", 0) >= min_fill_rate
+        ]
+    else:
+        feasible = [
+            t for t in study.trials
+            if t.user_attrs.get("fill_rate", 0) >= min_fill_rate
+        ]
 
     if feasible:
         best = min(feasible, key=lambda t: t.user_attrs["total_cost"])

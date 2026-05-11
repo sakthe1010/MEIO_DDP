@@ -1,16 +1,10 @@
 \chapter{Inventory Policies}
 \label{chap:policies}
 
-Seven inventory control policies are implemented in the \texttt{policies/}
-package.  They share a common Python interface and cover the major families
-found in the MEIO literature, from continuous-review analytical policies to
-periodic-review heuristics and the echelon-optimal Clark-Scarf policy.
-
-%% -----------------------------------------------------------------------
-\section{Common API}
-\label{sec:policies:api}
-
-Every policy exposes a single method:
+Seven inventory control policies are implemented in the policies/
+package, covering the major families found in the MEIO literature.
+They share a common interface --- every policy exposes a single
+\texttt{order\_qty} method:
 
 \begin{lstlisting}[language=Python, caption={Universal policy interface.}]
 def order_qty(
@@ -24,12 +18,9 @@ def order_qty(
     ...
 \end{lstlisting}
 
-The \texttt{t} argument is the current simulation day.  Periodic policies
-inspect \texttt{t} to determine whether a review is due; continuous-review
-policies ignore it.  Passing \texttt{t=None} causes periodic policies to
-act as if a review is due, which is the convention used during warm-up.
-
-The \emph{inventory position} (IP) used in most policies is:
+The \texttt{t} argument is the simulation day; periodic policies use it
+to determine whether a review is due, while continuous-review policies
+ignore it.  The \emph{inventory position} (IP) used in most policies is:
 
 \begin{equation}
   \text{IP} = \text{on\_hand} - \text{backlog\_external}
@@ -43,7 +34,7 @@ Orders are always non-negative; over-stocking is never triggered.
 \section{Base-Stock Policy}
 \label{sec:policies:bs}
 
-\textbf{Implementation:} \texttt{policies/base\_stock.py}
+\textbf{Implementation:} policies/base\_stock.py
 
 The base-stock (order-up-to) policy is the single-parameter benchmark
 derived from newsvendor theory.  On every period, the order quantity is:
@@ -74,8 +65,8 @@ consolidation, or order batching.
 \section{Reorder-Point Family: $(s,S)$ and $(R,Q)$}
 \label{sec:policies:sS}
 
-\textbf{Implementations:} \texttt{policies/ss\_policy.py},
-\texttt{policies/rq\_policy.py}
+\textbf{Implementations:} policies/ss\_policy.py,
+policies/rq\_policy.py
 
 \subsection{$(s,S)$ policy}
 
@@ -117,12 +108,12 @@ lanes with a fixed vehicle capacity.
 \section{Periodic-Review: $(R,S)$ and Order-Up-To with Phase Offset}
 \label{sec:policies:rs}
 
-\textbf{Implementations:} \texttt{policies/order\_up\_to.py},
-\texttt{policies/periodic\_review.py}
+\textbf{Implementations:} policies/order\_up\_to.py,
+policies/periodic\_review.py
 
 \subsection{$(R,S)$ periodic-review policy}
 
-The \texttt{PeriodicReviewPolicy} checks inventory every $R$ days and
+The PeriodicReviewPolicy checks inventory every $R$ days and
 orders up to level $S$:
 
 \begin{equation}
@@ -139,12 +130,12 @@ across nodes to smooth vehicle utilisation.
 
 \subsection{Order-up-to with phase offset}
 
-The \texttt{OrderUpToPolicy} generalises the above by allowing a
-\texttt{phase\_offset}: reviews occur when $(t - \text{phase\_offset}) \bmod R = 0$.
+The OrderUpToPolicy generalises the above by allowing a
+phase\_offset: reviews occur when $(t - \text{phase\_offset}) \bmod R = 0$.
 This lets different nodes review on staggered days, spreading transport
 demand across the week and improving consolidation opportunities.
 
-Optional \texttt{k} and \texttt{m} parameters further restrict the
+Optional k and m parameters further restrict the
 maximum number of orders ($k$) within a sliding window of $m$ days,
 combining periodic review with a $(k,m)$-cycle cap.
 
@@ -152,21 +143,21 @@ combining periodic review with a $(k,m)$-cycle cap.
 \section{Cyclic Policy: $(k,m)$-Cycle Scheduling}
 \label{sec:policies:km}
 
-\textbf{Implementation:} \texttt{policies/km\_cycle.py}
+\textbf{Implementation:} policies/km\_cycle.py
 
-The \texttt{KmCyclePolicy} schedules at most $k$ replenishment orders per
+The KmCyclePolicy schedules at most $k$ replenishment orders per
 $m$-day cycle, at pre-specified intra-cycle offsets:
 
 \begin{equation}
   q =
   \begin{cases}
-    \max(0, S - \text{IP}) & \text{if } t \bmod m \in \texttt{review\_offsets}
+    \max(0, S - \text{IP}) & \text{if } t \bmod m \in review\_offsets
                              \text{ and orders this cycle} < k \\
     0                      & \text{otherwise}
   \end{cases}
 \end{equation}
 
-For example, with $m = 7$ and \texttt{review\_offsets} $= \{0, 3\}$, the
+For example, with $m = 7$ and review\_offsets $= \{0, 3\}$, the
 policy reviews on Monday and Thursday of each week.  This structure
 is designed to be \emph{consolidation-friendly}: if the warehouse always
 orders on fixed days, the supplier can prepare full truck loads in advance.
@@ -175,7 +166,7 @@ orders on fixed days, the supplier can prepare full truck loads in advance.
 \section{Echelon Base-Stock (Clark--Scarf)}
 \label{sec:policies:echelon}
 
-\textbf{Implementation:} \texttt{policies/echelon\_stock.py}
+\textbf{Implementation:} policies/echelon\_stock.py
 
 The echelon base-stock policy implements the optimal policy for serial
 multi-echelon systems identified by \citet{ClarkScarf1960}.  Rather than
@@ -198,8 +189,8 @@ The order quantity is:
 
 where $S_e$ is the echelon base-stock level.  The simulator computes
 the EIP via a DFS traversal of the downstream subgraph in
-\texttt{Simulator.\_echelon\_pipeline}, and passes the result to the
-policy through the \texttt{pipeline\_in} argument.
+Simulator.\_echelon\_pipeline, and passes the result to the
+policy through the pipeline\_in argument.
 
 The echelon stock policy is optimal under the restrictive assumptions
 of Clark and Scarf (serial network, independent demands, no capacity
@@ -244,5 +235,8 @@ of requiring the simulator to compute the EIP on every tick.
 
 The main optimisation experiments (E0--E4) use the base-stock policy
 for all nodes because its single-parameter structure keeps the search
-space tractable (15 parameters for 5 SKUs $\times$ 3 non-supplier nodes)
-while being flexible enough to demonstrate the joint optimisation benefit.
+space tractable (25 parameters for 5 SKUs $\times$ 5 non-supplier
+nodes — W1, W2, R1, R2, R3) while being flexible enough to demonstrate
+the joint optimisation benefit.  The policy comparison experiment (E6,
+Section~\ref{sec:results:e6}) re-runs the optimisation with $(s,S)$,
+periodic-review, and echelon base-stock as alternatives.

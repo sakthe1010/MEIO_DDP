@@ -2,10 +2,13 @@
 \label{chap:methodology}
 
 This chapter describes the experimental design, datasets, and evaluation
-methodology used in this DDP.  The experiments are organised into two
-groups: four preliminary validation experiments (EV1--EV4) conducted on
-a simplified single-SKU topology, and six main optimisation experiments
-(E0--E4) on the full 5-SKU 1N3 network.
+methodology used in this study.  The experiments are organised into three
+groups: four preliminary validation experiments (EV1--EV4) on simplified
+single-SKU topologies, seven core optimisation experiments
+(E0--E4 plus E3\_per\_sku) on the full 5-SKU 1N3 network, and five
+extension and robustness experiments (E5--E8 plus E9) that stress-test
+the joint optimum under disruption, alternative inventory policies,
+demand-forecast error, bullwhip-aware objectives, and stochastic demand.
 
 %% -----------------------------------------------------------------------
 \section{Preliminary Validation Experiments (EV1--EV4)}
@@ -13,14 +16,19 @@ a simplified single-SKU topology, and six main optimisation experiments
 
 Before running the main optimisation suite, four controlled experiments
 were designed to verify that the simulator correctly reproduces known
-theoretical behaviour.  These experiments used a simplified \textbf{single-SKU,
-2-warehouse $\times$ 3-retailer} topology and real M5 Walmart demand data.
+theoretical behaviour.  EV1--EV3 used a simplified \textbf{single-SKU, 1-1-1}
+topology (1~supplier $\to$ 1~warehouse $\to$ 1~retailer) with synthetic demand
+(constant 5~units/day for EV1 and EV3; a constant background with a single
+spike at day~20 for EV2).  EV4 scaled to a
+single-SKU \textbf{1-2-3} topology (1~supplier $\to$ 2~warehouses $\to$
+3~retailers) and used real M5 Walmart demand data.
 
 \begin{table}[htbp]
   \centering
+  \small
   \caption{Preliminary validation experiments: scope and purpose.}
   \label{tab:ev-overview}
-  \begin{tabular}{@{}llp{7cm}@{}}
+  \begin{tabular}{@{}p{1cm}p{4.5cm}p{7cm}@{}}
     \toprule
     ID & Title & Purpose \\
     \midrule
@@ -40,6 +48,23 @@ theoretical behaviour.  These experiments used a simplified \textbf{single-SKU,
   \end{tabular}
 \end{table}
 
+\begin{table}[htbp]
+  \centering
+  \small
+  \caption{Network topologies and demand configurations used across all experiments.}
+  \label{tab:topology-overview}
+  \begin{tabular}{@{}llcl@{}}
+    \toprule
+    Experiment group & Topology & SKUs & Demand \\
+    \midrule
+    EV1--EV3 & 1-1-1 & 1 & Synthetic (constant or single spike) \\
+    EV4      & 1-2-3 & 1 & M5 Walmart (historical) \\
+    E0--E8 (main) & 1-2-3 & 5 & M5 Walmart (historical) \\
+    E9 (stochastic) & 1-2-3 & 5 & Poisson ($\lambda$ = M5 mean per retailer/SKU) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
 \subsection{EV1 --- Constant-demand convergence}
 \label{sec:meth:ev1}
 
@@ -53,7 +78,7 @@ $S - d \cdot L$ (the equilibrium on-hand level) within $L+1$ days.
 \label{sec:meth:ev2}
 
 A synthetic demand series with constant background demand $d$ and a
-single large spike at day 20 is read from \texttt{inputs/demand\_shock.csv}.
+single large spike at day 20 is read.
 The experiment verifies that the upstream nodes observe an amplified order
 spike with a delay matching the cumulative pipeline lead time.
 
@@ -70,7 +95,7 @@ $(s,S)$ fixed-quantity orders align better with vehicle loads.
 
 Vehicle capacity is scaled by multipliers $\{0.25, 0.5, 1.0, 2.0, 4.0\}$
 relative to a baseline calibrated to carry one week of average demand.
-M5 Walmart demand data is used for realism.  Results appear in
+M5 Walmart demand data is used for realism.  Results are shown in
 Table~\ref{tab:ev4} (Section~\ref{sec:results:ev4}).
 
 %% -----------------------------------------------------------------------
@@ -78,7 +103,7 @@ Table~\ref{tab:ev4} (Section~\ref{sec:results:ev4}).
 \label{sec:meth:dataset}
 
 The demand data for all experiments is derived from the
-\textbf{M5 Walmart Forecasting dataset} \citep{MakridakisEtAl2020}.
+\textbf{M5 Walmart Forecasting dataset}.
 The M5 dataset contains daily unit sales for thousands of products across
 ten Walmart stores in the United States, spanning approximately five years.
 
@@ -94,35 +119,57 @@ Poisson processes can capture:
         coefficient-of-variation values that challenge base-stock stability.
 \end{itemize}
 
-Per-retailer daily demand CSVs (\texttt{inputs/demand\_data/R1.csv},
-\texttt{R2.csv}, \texttt{R3.csv}) were derived by selecting one M5
-series per retailer per SKU, filtering to a 365-day window, and reindexing
-to a zero-based day index.  For the preliminary validation experiments,
-a separate synthetic series (\texttt{demand\_shock.csv}) with a single
-spike at day 20 was constructed.
-
+Per-retailer daily demand CSVs were derived by selecting one M5 series
+per retailer per SKU.  For the main experiments, the simulator reads
+the \emph{last 365 days} of each series,
+which corresponds to the most recent year of Walmart operations in the
+M5 timeline.  This choice avoids the non-stationary trend present
+across the full 1913-day series while keeping the 365-day horizon long
+enough for fill-rate statistics to stabilise.  For the preliminary
+validation experiments, a separate synthetic series with a single spike at day 20 was
+constructed.
+\vspace{10em}
 %% -----------------------------------------------------------------------
 \section{Main Experiment Configuration}
 \label{sec:meth:config}
 
-All main experiments (E0--E4) use the configuration file
-\texttt{config/1n3\_5sku.json} with the following parameters:
+All main experiments (E0--E9) share the following common parameters:
 
-\begin{table}[htbp]
+\begin{table}[H]
   \centering
+  \small
+  \caption{Deterministic lead times in the canonical 1N3 configuration.}
+  \label{tab:lead-times}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Lane & Lead time \\
+    \midrule
+    Supplier $\to$ W1 & 5 days \\
+    Supplier $\to$ W2 & 6 days \\
+    W1 $\to$ R1       & 2 days \\
+    W1 $\to$ R2       & 3 days \\
+    W2 $\to$ R3       & 4 days \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \small
   \caption{Main experiment simulation parameters.}
   \label{tab:sim-params}
-  \begin{tabular}{@{}ll@{}}
+  \begin{tabular}{@{}p{4cm}p{8cm}@{}}
     \toprule
     Parameter & Value \\
     \midrule
-    Network topology & 1 supplier, 1 warehouse (W1), 3 retailers (R1--R3) \\
-    SKUs & 5 (SKU\_A through SKU\_E) \\
+    Network topology   & 1 supplier, 2 warehouses (W1, W2), 3 retailers (R1--R3) \\
+    Service map        & W1 $\to$ \{R1, R2\};\; W2 $\to$ R3 \\
+    SKUs               & 5 (SKU\_A through SKU\_E) \\
     Simulation horizon & 365 days \\
-    Warm-up period & 30 days (excluded from KPIs) \\
-    Demand type & CSV-driven (M5 Walmart, retailer-specific) \\
-    Lead times & Deterministic (supplier$\to$W1: 2d; W1$\to$Ri: 1d) \\
-    Fill-rate target & $\geq$ 92\% (soft constraint, experiments E1b--E3) \\
+    Demand window      & M5 days 1548--1912 (most recent 365 days), \texttt{strategy=clip} \\
+    Warm-up period     & 30 days (per-experiment override via \texttt{recommended\_warmup}) \\
+    Demand type        & CSV-driven (M5 Walmart, retailer-specific) \\
+    Fill-rate target   & $\geq$ 92\% (soft constraint, experiments E1b onwards) \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -132,127 +179,183 @@ and weights (0.5--1.2 kg/unit), so the GreedyLoadPlanner's dual
 volume-and-weight capacity constraint is active for some SKU mixes.
 
 %% -----------------------------------------------------------------------
-\section{Warm-Up Exclusion}
+\section{Experimental Controls}
 \label{sec:meth:warmup}
 
-At simulation start, all nodes are initialised with a configurable amount
-of stock.  This initial stock creates a transient period during which
-KPIs reflect the initialisation state rather than the steady-state
-behaviour of the policy.  To avoid this bias, the first 30 days of each
-simulation run are \emph{excluded} from all reported KPIs (costs, fill
-rates, bullwhip ratios).
+At simulation start, all nodes are initialised with a configurable
+amount of stock.  This initial stock creates a transient period during
+which KPIs reflect the initialisation state rather than the steady-state
+behaviour of the policy.  To avoid this bias, an initial window of each
+simulation run is \emph{excluded} from all reported KPIs (costs, fill
+rates, bullwhip ratios).  Inventory dynamics still execute during the
+warm-up window so the system reaches steady state before measurement
+begins.
 
-Warm-up exclusion is enforced by passing the \texttt{--warmup 30} flag
-to all experiment scripts.  The warm-up period was chosen to be
-$\geq 2 \times L_{\max}$, where $L_{\max} = 2$ days is the maximum
-lead time in the network, ensuring that initial inventory effects have
-dissipated before measurement begins.
+The warm-up length is chosen \emph{per experiment} via the
+recommended\_warmup field on each entry of
+EXPERIMENT\_META in the runner script.  For the M5 365-day
+scenario, this is 30 days — approximately 8\% of the horizon and at
+approximately three times the longest pipeline lead time (Supplier$\to$W2 at 6
+days plus W2$\to$R3 at 4 days, totalling 10 days).  The CLI --warmup flag
+overrides this per run; synthetic configurations whose transient
+itself is the signal (e.g.\ the demand-shock validation EV2) pass
+--warmup 0 explicitly.  The runner emits a warning if a
+non-trivial scenario ($T \geq 200$) is run with no warm-up.
 
 %% -----------------------------------------------------------------------
-\section{Multi-Seed Statistical Validation}
+\subsection{Multi-seed statistical validation}
 \label{sec:meth:multiseed}
 
-To quantify the sensitivity of results to the random seed (which affects
-stochastic demand realisations and TPE search paths), the framework
-provides \texttt{scripts/multi\_seed\_validation.py}.  This script:
+Multi-seed validation is integrated into the experiment runner via the
+--validate\_seeds N flag.  When supplied, the runner re-evaluates
+the best E3 parameter set in $N$ fresh simulations whose random seeds
+are advanced by one each time, and writes
+multiseed\_validation.csv (one row per seed) and
+multiseed\_summary.csv (mean and standard deviation of total
+cost and fill rate).
 
-\begin{enumerate}
-  \item Runs the simulation with the specified policy parameters across
-        $N$ independently seeded runs (default $N = 10$).
-  \item Reports the 95\% confidence interval on total cost and fill rate
-        using the normal approximation.
-  \item Compares two configurations (e.g.\ E0 vs E3) using a
-        Welch two-sample $t$-test to assess whether the observed
-        cost difference is statistically significant.
-\end{enumerate}
-
-Because the main experiments use a fixed deterministic demand CSV,
-cross-seed variance in cost is primarily driven by the optimiser's
-stochastic search path rather than demand variability.  Multi-seed
-validation is most informative when used with Poisson demand generators.
+Because the main experiments use a fixed deterministic M5 demand CSV
+\emph{and} deterministic lead times, demand realisations do not vary
+across seeds; the multi-seed run therefore reports zero variance under
+the canonical configuration.  Cross-seed variance becomes informative
+when the demand generator is Poisson or the lead-time generator is
+stochastic, which the framework supports but the canonical 1N3 5-SKU
+scenario does not exercise.
 
 %% -----------------------------------------------------------------------
 \section{Bullwhip Metric}
 \label{sec:meth:bullwhip}
 
-The bullwhip ratio is the ratio of the order coefficient-of-variation
-squared to the demand coefficient-of-variation squared:
+The bullwhip ratio is computed \emph{per echelon} as the ratio of the
+order coefficient-of-variation squared at node $n$ to the
+coefficient-of-variation squared of the time series of orders
+\emph{arriving at} node $n$:
 
 \begin{equation}
-  \text{BW}_{n,s} = \frac{\text{CV}^2(\text{orders}_{n,s})}
-                         {\text{CV}^2(\text{demand}_{n,s})}
+  \text{BW}_{n,s} \;=\;
+    \frac{\text{CV}^2\!\bigl(\text{orders out of } n \text{ for SKU } s\bigr)}
+         {\text{CV}^2\!\bigl(\text{orders into } n \text{ for SKU } s\bigr)}
   \label{eq:bullwhip}
 \end{equation}
 
-A ratio greater than one at node $n$ indicates that orders placed by $n$
-are \emph{more} variable than the demand $n$ faces, i.e.\ amplification
-is occurring.  The metric is computed on the post-warm-up window only,
-using the daily order logs stored in \texttt{orders\_log.csv}.
+The ``orders into $n$'' series is defined as
+\begin{itemize}
+  \item the external customer demand series, when $n$ is a retailer;
+  \item the daily sum of orders\_to\_parent from every child of $n$,
+        when $n$ is a warehouse or the supplier.
+\end{itemize}
 
-For retailers, the denominator is the external customer demand; for the
-warehouse and supplier, the denominator is the aggregate demand from
-their children (which is itself the retailers' orders).
+Aggregating child orders is essential for upstream nodes: a warehouse
+with two retailers as children faces the \emph{sum} of their orders,
+not the demand at any one retailer.  Failing to aggregate produces an
+inflated, mis-attributed ratio.  This per-echelon definition follows
+\citet{LeeEtAl1997} and is verified by a hand-computable scenario in
+tests/test\_bullwhip.py.  Each row of the resulting
+bullwhip.csv stores node\_id, sku,
+cv2\_in, cv2\_out, and bullwhip\_ratio so the
+two component variances can be inspected independently.  The metric is
+computed on the post-warm-up window only.
 
 %% -----------------------------------------------------------------------
-\section{Main Optimisation Experiments E0--E4}
+\section{Main Optimisation Experiments E0--E9}
 \label{sec:meth:main}
 
-The six main experiments are summarised in Table~\ref{tab:exp-overview}.
+Twelve experiments cover the full study; seven form the core (E0--E4 and
+E3\_per\_sku), four (E5--E8) extend the canonical optimum to
+disruption, alternative policies, forecast error, and bullwhip-aware
+objectives, and one (E9) tests stochastic demand robustness.
+Table~\ref{tab:exp-overview} summarises each.
 
 \begin{table}[htbp]
   \centering
-  \caption{Main optimisation experiments: design and hypothesis.}
+  \caption{Main optimisation experiments: design and hypothesis or finding.}
   \label{tab:exp-overview}
-  \renewcommand{\arraystretch}{1.2}
-  \begin{tabular}{@{}llp{7cm}@{}}
+  \renewcommand{\arraystretch}{1.15}
+  \small
+  \begin{tabular}{@{}p{2.2cm}p{4.5cm}p{6.5cm}@{}}
     \toprule
-    ID & Title & Hypothesis \\
+    ID & Title & Hypothesis or finding \\
     \midrule
-    E0 & Analytical baseline &
-         Newsvendor stock levels + zero dispatch thresholds will produce
-         a high transport cost and sub-92\% fill rate. \\[4pt]
-    E1a & Fixed 25\% dispatch threshold &
-          Imposing a uniform consolidation constraint without adjusting
-          inventory will reduce transport cost but collapse fill rate. \\[4pt]
-    E1b & Transport-only optimisation &
-          Optimising dispatch thresholds alone (inventory fixed at E0)
-          will achieve modest cost reduction but cannot reach 92\% fill. \\[4pt]
-    E2 & Inventory-only optimisation &
-         Optimising stock levels alone (thresholds fixed at 0) will
-         achieve 92\% fill but increase total cost. \\[4pt]
-    E3 & \textbf{Joint optimisation (main result)} &
-         Simultaneous optimisation of inventory and transport will
-         achieve the lowest cost at $\geq$92\% fill. \\[4pt]
-    E4 & Pareto frontier &
-         The cost--service trade-off exhibits diminishing returns: each
-         percentage point of fill rate above 95\% costs substantially more. \\
+    E0          & Analytical baseline (newsvendor)          & Newsvendor stock + zero dispatch threshold leaves transport cost dominant. \\
+    E1a         & Fixed 25\% dispatch threshold             & Naive consolidation collapses fill rate. \\
+    E1b         & Transport-only optimisation               & Cannot reach 92\% with inventory fixed at E0 levels. \\
+    E2          & Inventory-only optimisation               & Reaches the fill target but cost rises. \\
+    E3          & Joint optimisation                        & Lowest cost at $\geq$92\% fill. \\
+    E3\_per\_sku & Joint with \emph{per-SKU} fill constraint & Removes worst-SKU shortfall at small cost premium. \\
+    E4          & Pareto frontier (NSGA-II + sweep)         & Diminishing returns above 95\% fill. \\
+    E5          & Disruption robustness (14-day W1 outage)  & E3 parameters provide greater resilience; the optimiser is not exposed to this scenario. \\
+    E6          & Policy comparison (core 4)                & Echelon-stock does not dominate the other policies; see Section~\ref{sec:results:e6}. \\
+    E7          & Forecast sensitivity ($\sigma_f$ sweep)   & Joint optima are robust up to $\sigma_f \approx 10\%$. \\
+    E8          & Bullwhip-aware joint optimisation         & Bullwhip $\approx 1$ under base-stock with deterministic lead times; the system reaches the optimal solution. \\
+    E9          & Stochastic demand robustness              & E3 jointly-optimised params generalise to Poisson demand; fill rate holds within 2\,pp of the deterministic result. \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 All experiments except E0 use the Optuna-TPE optimiser described in
-Chapter~\ref{chap:optimization}.  Experiment E0 uses analytically derived
-parameters and requires no optimisation.  All experiments share the same
-simulator configuration, demand data, and warm-up window to enable fair
-comparison.
+Chapter~\ref{chap:optimization}.  E4 additionally invokes the
+NSGA-II sampler (Section~\ref{sec:opt:pareto}); E6 invokes the
+per-policy parameter registry (with joint transport co-optimisation); E8 invokes the bullwhip-aware variant.
+E9 does not invoke any optimiser: it applies the E3 parameter set to a Poisson demand
+environment and reports transferability.
+All experiments share the same network topology to enable fair comparison.
+
+\subsection{Newsvendor levels at runtime (E0)}
+\label{sec:meth:newsvendor-runtime}
+
+The analytical baseline E0 uses the newsvendor formula
+(Equation~\ref{eq:newsvendor}) with $z_\alpha = 1.64$,
+corresponding to a $\sim$95\% one-sided service level.  Crucially, $\mu$ and $\sigma$ are
+\emph{not} read from the JSON config; they are computed at run time
+from the realised demand series after warm-up.  The runner first
+performs a dummy simulation to extract the post-warmup demand at every
+retailer, aggregates it to obtain warehouse-level demand, derives the
+analytical $S$ for each (node, SKU), and overwrites the config's
+base\_stock\_level fields and initial\_inventory
+before any experiment runs.  The resulting levels are saved to
+E0/params.json.  Downstream experiments E1a, E1b, E2, and E3
+inherit this corrected baseline so all experiments are anchored at the
+same analytical reference.
+
+\subsection{Disruption injection (E5)}
+\label{sec:meth:disruption-injection}
+
+Disruptions are passed to the simulator via the disruptions
+list of the JSON config.  In E5 a single 14-day outage is injected at
+warehouse W1, starting at day $t_s = w + \lfloor 0.6\,(T-w) \rfloor$
+where $w$ is the warm-up length and $T$ the horizon, so the shock lands
+in the middle of the steady-state measurement window.  During the
+outage the node accumulates child orders without dispatching; once the
+outage ends, accumulated backlog is served as inventory permits.  The
+experiment is run twice: once with the E0 (analytical) parameters and
+once with the E3 (joint-optimised) parameters, both unaware of the
+disruption at optimisation time.
 
 %% -----------------------------------------------------------------------
 \section{Reproducibility}
 \label{sec:meth:reproducibility}
 
 Each experiment run generates a self-contained output directory at
-\texttt{outputs/experiments\_\textlangle ts\textrangle /}, containing:
+outputs/experiments\_\textlangle ts\textrangle /, containing:
 
 \begin{itemize}
-  \item \texttt{params.json} — the exact policy parameters used.
-  \item \texttt{summary.txt} — total cost, cost breakdown, fill rates,
+  \item params.json — the exact policy parameters used.
+  \item summary.txt — total cost, cost breakdown, fill rates,
         and bullwhip ratios in human-readable form.
-  \item CSV logs: \texttt{inventory\_log.csv}, \texttt{orders\_log.csv},
-        \texttt{costs\_by\_node\_sku.csv}, \texttt{kpis\_by\_sku.csv},
-        \texttt{bullwhip.csv}, \texttt{shipments\_log.csv}.
+  \item CSV logs: inventory\_log.csv, orders\_log.csv,
+        costs\_by\_node\_sku.csv, kpis\_by\_sku.csv,
+        bullwhip.csv, shipments\_log.csv.
   \item PNG plots: cost breakdown, fill rate, inventory time-series,
         order time-series, bullwhip, and Pareto frontier.
 \end{itemize}
 
 The CLI commands to reproduce all results are given in
-Appendix~\ref{appn:reproduction}.
+Appendix~\ref{appn:reproduction}.  The single command that reproduces
+the canonical results reported in Chapter~\ref{chap:results} is
+
+\begin{verbatim}
+python scripts/run_experiments.py --config config/1n3_5sku.json \
+       --experiments E0 E1a E1b E2 E3 E3_per_sku E4 E5 E6 E7 E8 E9 \
+       --trials 100 --validate_seeds 10
+python scripts/plot_results.py --expdir outputs/experiments_<ts>/
+\end{verbatim}

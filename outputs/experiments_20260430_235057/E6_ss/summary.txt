@@ -1,0 +1,48 @@
+E6_ss — Policy = ss
+============================================================
+Total cost            :     369,256.55
+  Holding             :     118,664.35  (32.1%)
+  Transport           :     218,881.00  (59.3%)
+  Ordering            :      10,184.00  (2.8%)
+  Shortage            :      21,527.20  (5.8%)
+Fill rate             :         92.03%
+
+Fill rate by SKU:
+  SKU_A           95.19%
+  SKU_B           83.94%
+  SKU_C           86.56%
+  SKU_D           99.50%
+  SKU_E           92.65%
+
+Bullwhip ratio by node × SKU (order CV² / demand CV²):
+  Node            SKU                  BWE
+  R1              SKU_A             57.642
+  R1              SKU_B             14.403
+  R1              SKU_C             13.271
+  R1              SKU_D             49.052
+  R1              SKU_E             14.423
+  R2              SKU_A            141.642
+  R2              SKU_B             39.386
+  R2              SKU_C             34.852
+  R2              SKU_D             42.225
+  R2              SKU_E            158.729
+  R3              SKU_A            119.793
+  R3              SKU_B             22.148
+  R3              SKU_C             52.066
+  R3              SKU_D            103.026
+  R3              SKU_E             74.303
+  Supplier        SKU_A                nan
+  Supplier        SKU_B                nan
+  Supplier        SKU_C                nan
+  Supplier        SKU_D                nan
+  Supplier        SKU_E                nan
+  W1              SKU_A              1.014
+  W1              SKU_B              6.132
+  W1              SKU_C              0.988
+  W1              SKU_D              1.000
+  W1              SKU_E              3.536
+  W2              SKU_A              1.946
+  W2              SKU_B              9.234
+  W2              SKU_C              2.073
+  W2              SKU_D              2.141
+  W2              SKU_E              3.469

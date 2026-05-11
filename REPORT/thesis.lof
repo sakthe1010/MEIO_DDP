@@ -4,15 +4,20 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Example DAG topology: one supplier, two warehouses, and three retailers. The framework supports arbitrary depth and breadth; this is one of several topologies used during development.}}{14}{figure.caption.10}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Discrete-event simulation loop for one daily tick.}}{17}{figure.caption.7}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {7.1}{\ignorespaces Pareto frontier of total cost versus achieved fill rate under joint Optuna-TPE optimisation (E4). Each point represents the best feasible result at the corresponding fill-rate target.}}{50}{figure.caption.36}%
-\addvspace {10\p@ }
-\addvspace {10\p@ }
-\addvspace {10\p@ }
+\contentsline {figure}{\numberline {7.1}{\ignorespaces EV1 --- Inventory position at retailer and warehouse under constant demand.}}{50}{figure.caption.28}%
+\contentsline {figure}{\numberline {7.2}{\ignorespaces EV2 --- On-hand inventory under a demand spike at day~20.}}{50}{figure.caption.29}%
+\contentsline {figure}{\numberline {7.3}{\ignorespaces EV3a --- Warehouse inventory under base-stock and $(s,S)$ policies (without transport capacity).}}{51}{figure.caption.30}%
+\contentsline {figure}{\numberline {7.4}{\ignorespaces EV3b --- Warehouse inventory under base-stock and $(s,S)$ policies (with transport capacity).}}{51}{figure.caption.31}%
+\contentsline {figure}{\numberline {7.5}{\ignorespaces E5 --- Cost and fill rate under the 14-day W1 outage.}}{60}{figure.caption.43}%
+\contentsline {figure}{\numberline {7.6}{\ignorespaces E6 --- Cost and fill rate for each individually optimised policy.}}{61}{figure.caption.45}%
+\contentsline {figure}{\numberline {7.7}{\ignorespaces E7 --- Total cost and fill rate vs.\ forecast error $\sigma _f$.}}{62}{figure.caption.47}%
+\contentsline {figure}{\numberline {7.8}{\ignorespaces Fill rate across experiments E0--E3\_per\_sku.}}{67}{figure.caption.52}%
+\contentsline {figure}{\numberline {7.9}{\ignorespaces Cost breakdown by category across experiments E0--E3\_per\_sku.}}{67}{figure.caption.53}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }

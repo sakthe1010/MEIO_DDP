@@ -1,0 +1,59 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python -m pytest tests/test_bullwhip.py -q)",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(python -c \"import scripts.run_experiments; import optimizer.optimize; import optimizer.pareto; import optimizer.policy_search; import optimizer.bullwhip_aware; print\\('OK'\\)\")",
+      "Bash(python -m pytest tests/test_experiments_e2e.py tests/test_bullwhip.py -q)",
+      "Bash(python3)",
+      "Bash(timeout 300 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E1a --trials 30)",
+      "Bash(timeout 600 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E1a E1b E2 E3 E3_per_sku --trials 40)",
+      "Bash(timeout 600 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E3 E4 --trials 40 --outdir /tmp/ddp_e4)",
+      "Read(//tmp/ddp_e4/**)",
+      "Bash(timeout 1200 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E1a E1b E2 E3 E3_per_sku E4 --trials 100)",
+      "Bash(timeout 120 python scripts/plot_results.py --expdir outputs/experiments_20260430_234016/)",
+      "Bash(timeout 200 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E3 E5 --trials 60 --outdir /tmp/ddp_e5)",
+      "Bash(timeout 600 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E6 --trials 50 --outdir /tmp/ddp_e6)",
+      "Bash(timeout 600 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E3 E7 --trials 60 --outdir /tmp/ddp_e7)",
+      "Bash(timeout 1200 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E3 E8 --trials 60 --outdir /tmp/ddp_e8)",
+      "Bash(timeout 1800 python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E1a E1b E2 E3 E3_per_sku E4 E5 E6 E7 E8 --trials 80 --validate_seeds 5)",
+      "Bash(timeout 120 python scripts/plot_results.py --expdir outputs/experiments_20260430_235057/)",
+      "Bash(timeout 240 latexmk -pdf -interaction=nonstopmode -halt-on-error thesis.tex)",
+      "Bash(latexmk -C)",
+      "Bash(timeout 240 latexmk -pdf -interaction=nonstopmode thesis.tex)",
+      "Read(//usr/share/texlive/texmf-dist/tex/latex/microtype/**)",
+      "Bash(timeout 240 latexmk -pdf -f -interaction=batchmode thesis.tex)",
+      "Bash(pdftotext thesis.pdf -)",
+      "Bash(pdfinfo thesis.pdf)",
+      "Bash(grep -n 'W2.*R3\\\\|W2$\\\\\\\\to\\\\$R3' /home/sakthe/Desktop/DDP/REPORT/2-mainmatter/chapters/chap-06-methodology.tex)",
+      "Bash(python -m pytest tests/ -q --co)",
+      "Bash(latexmk -pdf -interaction=nonstopmode thesis.tex)",
+      "Bash(latexmk -pdf -interaction=nonstopmode -f thesis.tex)",
+      "Bash(latexmk -C thesis.tex)",
+      "Bash(latexmk -pdf -interaction=nonstopmode -g thesis.tex)",
+      "Bash(grep -v '\\\\$')",
+      "Bash(grep -v '\\\\\\\\$\\\\|\\\\\\\\\\\\\\\\')",
+      "Bash(grep -nE '^\\\\s*[0-9]+\\\\.[0-9]+%|[^$][0-9]+\\\\.[0-9]+%[^$]' /home/sakthe/Desktop/DDP/REPORT/2-mainmatter/chapters/chap-01-introduction.tex)"
+    ],
+    "additionalDirectories": [
+      "/home/sakthe/Desktop/DDP/REPORT"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // .tool_response.filePath'); [[ \"$f\" == /home/sakthe/Desktop/DDP/REPORT/* ]] && cd /home/sakthe/Desktop/DDP/REPORT && latexmk -pdf -silent thesis.tex 2>/dev/null || true",
+            "timeout": 120,
+            "statusMessage": "Regenerating PDF...",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

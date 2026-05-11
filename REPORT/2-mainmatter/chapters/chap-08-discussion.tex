@@ -5,139 +5,306 @@
 \section{Answering the Research Questions}
 \label{sec:disc:rq}
 
-Three research questions (RQs) motivated this DDP.  This section
-evaluates each against the experimental evidence.
+Five research questions (RQs) motivated this DDP.  This section
+evaluates each against the experimental evidence from
+Chapter~\ref{chap:results}.
 
-\subsection{RQ1: Does joint inventory-transport optimisation outperform
+\subsection{RQ1: Does joint inventory--transport optimisation outperform
 single-axis optimisation?}
 
 \textbf{Answer: Yes, decisively.}
 
-Experiment E3 (joint optimisation) achieves a total cost of \$1,556,516
-at a fill rate of 95.37\%.  This is:
+Experiment E3 (joint optimisation) achieves a total cost of \$261,248
+at a fill rate of 98.72\%.  This is:
 \begin{itemize}
-  \item \textbf{39.0\% below the analytical baseline (E0)}, which costs
-        \$2,553,418 at only 86.15\% fill.
-  \item \textbf{15.5\% below transport-only optimisation (E1b)}, which
-        costs \$2,252,612 but achieves only 82.25\% fill.
-  \item \textbf{42.4\% below inventory-only optimisation (E2)}, which
-        costs \$2,700,388 even while achieving 97.33\% fill.
+  \item \textbf{37.3\% below the analytical baseline (E0)}, which costs
+        \$416,952 at only 91.59\% fill.
+  \item \textbf{29.5\% below transport-only optimisation (E1b)}, which
+        costs \$370,370 but achieves only 87.44\% fill.
+  \item \textbf{44.8\% below inventory-only optimisation (E2)}, which
+        costs \$473,470 even while achieving 97.73\% fill.
 \end{itemize}
 
 The mechanism is clear from the cost-shift analysis in
 Section~\ref{sec:results:e3}: joint optimisation deliberately increases
-holding cost by \$242k (+175\%) to unlock \$1.04M in transport savings
-($-$55\%), achieving a 4.3:1 leverage ratio between holding and transport costs.
+holding cost by \$60k ($+$288\%) to unlock \$194k in transport savings
+($-$58\%) and a further \$22k in shortage avoidance ($-$86\%), a
+roughly 3.5:1 leverage between inventory cost spent and total cost
+returned.
 
 The reason single-axis optimisation cannot achieve this is structural.
 Transport-only optimisation (E1b) cannot raise dispatch thresholds
 without depleting retailer inventory, because base-stock levels are
 anchored at lean analytical values.  Inventory-only optimisation (E2)
-raises stock levels to achieve good fill rates but leaves dispatch
-thresholds at zero, so every order is dispatched immediately as a small,
-expensive partial load.  Only joint search discovers that raising stock
-and raising dispatch thresholds are \emph{complementary} moves that must
-be made simultaneously.
+raises stock levels but leaves dispatch thresholds at zero, so every
+order is dispatched immediately as a small, expensive partial load.
+Only joint search discovers that raising stock and raising dispatch
+thresholds are \emph{complementary} moves that must be made
+simultaneously.
 
-\subsection{RQ2: How does the joint-optimised configuration perform under
-supply disruption?}
+Furthermore, the per-SKU variant (E3\_per\_sku,
+Section~\ref{sec:results:e3_per_sku}) shows that the same approach
+can deliver an even stricter service guarantee — every SKU above 98.5\%
+fill — at a cost premium of only \$6.5k (2.5\%) over the
+aggregate-constraint E3.
+
+\subsection{RQ2: How does the joint-optimised configuration perform
+under supply disruption?}
 \label{sec:disc:rq2}
 
-\textbf{This research question addresses a planned extension that has not
-yet been conducted.}  The supply disruption sensitivity experiment
-(§7.9 of the original research plan) will re-run E0 and E3 with a 14-day
-supplier outage and compare the degradation in fill rate and cost between
-the two configurations.  The hypothesis, consistent with the literature on
-safety-stock buffering, is that the E3 configuration — which holds higher
-inventory at the warehouse level — will degrade more gracefully than E0.
-This experiment is reserved for future work and is described in the
-limitations and future work sections below.
+\textbf{Answer: It absorbs the shock substantially better than the
+analytical baseline, even though the optimiser never saw the
+disruption.}
+
+Experiment E5 (Section~\ref{sec:results:e5}) injects a 14-day outage at
+warehouse W1 in the middle of the steady-state measurement window and
+applies the same shock to E0 (analytical) parameters and E3
+(joint-optimised) parameters.  The result is striking:
+
+\begin{itemize}
+  \item E3 parameters: \$2,222,406 total cost, 81.86\% fill rate
+        despite the outage.
+  \item E0 parameters: \$2,577,516 total cost, 73.83\% fill rate.
+  \item E3 outperforms E0 by 8.0 percentage points of fill rate and
+        13.8\% of total cost.
+\end{itemize}
+
+The mechanism is incidental robustness.  E3 holds higher safety stock
+at the warehouses (holding cost shifts from 5.0\% to 31.1\% of total
+in steady state) for transport-consolidation reasons.  When W1 cannot
+ship for two weeks, this elevated stock continues to serve R1 and R2
+longer than the lean E0 buffer can.  The optimisation criterion was
+``minimise cost subject to a fill-rate constraint'' — disruption
+absorption was an unintended bonus.
+
+This is encouraging from a deployment standpoint: the configurations
+recommended by the framework are not brittle to common operational
+shocks, even though the framework currently does not optimise for them
+explicitly.  Disruption-aware joint optimisation (where the optimiser
+sees the disruption while searching) is a natural future extension.
 
 \subsection{RQ3: Does joint optimisation suppress the bullwhip effect?}
 
-\textbf{Answer: Partially, but not fully.}
+\textbf{Answer: Steady-state bullwhip is essentially $1.0$ in this
+scenario, so there is nothing to suppress.}
 
-The bullwhip analysis in Section~\ref{sec:results:bullwhip} shows that
-amplification ratios at the warehouse and supplier nodes decrease under
-E3 relative to E0.  This is consistent with the mechanism: the high
-dispatch thresholds on the supplier-to-warehouse lanes mean that the
-warehouse accumulates demand before placing large consolidated orders,
-which appear \emph{less} variable to the supplier on a per-day basis.
+The corrected per-echelon bullwhip metric
+(Section~\ref{sec:meth:bullwhip}) reports ratios in the range
+$0.998$--$1.004$ at every (node, SKU) pair across E0, E3, and
+E3\_per\_sku.  Under base-stock policies and deterministic lead times,
+each node's outgoing orders equal its incoming demand; there is no
+amplification to suppress.  This rules out a simpler narrative — ``E3
+suppresses bullwhip'' — that the original (incorrectly aggregated)
+metric appeared to support.
 
-However, amplification is not eliminated.  The warehouse node still
-aggregates orders from three retailers with heterogeneous demand patterns,
-introducing variability that is not present in any individual retailer's
-demand.  Eliminating bullwhip entirely would require either a
-vendor-managed inventory arrangement (where the supplier directly observes
-retailer demand) or demand signal sharing — both of which are outside the
-scope of the current framework.
+The bullwhip metric is not vacuous, however; it is informative under
+two conditions:
+
+\begin{description}
+  \item[Policy choice (E6).] $(s,S)$ produces per-(node, SKU) bullwhip
+        ratios up to 176 due to discrete batching;
+        periodic\_review produces ratios up to 13.9 due to review-cycle
+        delay.  These policies generate bullwhip endogenously.
+  \item[Supply shock (E5).] During the W1 outage, retailer ratios spike
+        to 30--80 — the metric correctly registers the disturbance.
+\end{description}
+
+The thesis claim therefore becomes: \emph{joint optimisation does not
+introduce bullwhip; choice of policy does.}  This also explains the
+negative result of E8: the bullwhip-aware optimiser is most useful when
+the policy or scenario already induces bullwhip, which the canonical
+base-stock + deterministic-LT setup does not.
+
+\subsection{RQ4: Does the echelon base-stock policy dominate empirically?}
+
+\textbf{Answer: No, not under transport-cost-dominated conditions with
+deterministic lead times.}
+
+Experiment E6 (Section~\ref{sec:results:e6}) optimises four policies on
+the same scenario and finds that:
+
+\begin{itemize}
+  \item $(s,S)$ is the cheapest feasible policy at \$352,015 / 94.33\%
+        fill — its discrete batching aligns naturally with vehicle
+        loads.
+  \item base\_stock is second at \$458,021 / 96.29\%.
+  \item periodic\_review is \emph{infeasible} at \$409,051 / 88.48\% —
+        the review-cycle delay collides with the transport layer's
+        consolidation logic to produce stockouts.
+  \item echelon\_stock is the most expensive at \$486,394 / 98.46\% —
+        it inflates holding cost without finding a corresponding
+        transport saving in this regime.
+\end{itemize}
+
+The textbook expectation that echelon base-stock dominates rests on the
+Clark--Scarf assumptions (serial network, no capacity constraints,
+independent demands) which the canonical 1N3 scenario does not satisfy.
+In particular, the divergent topology (W1 serves \{R1, R2\}; W2 serves
+R3) breaks the serial assumption, and the vehicle-capacity transport
+layer breaks the no-capacity assumption.  The empirical winner is
+$(s,S)$ for the inventory layer alone, but neither $(s,S)$ nor
+echelon\_stock beats the joint base-stock + dispatch-threshold optimum
+of E3 (\$261k).  The joint optimisation across both layers is more
+valuable than the choice of inventory policy within either.
+
+\subsection{RQ5: How robust is the joint optimum to demand-forecast error?}
+
+\textbf{Answer: Robust up to $\sigma_f \approx 10\%$; degrades gracefully
+to $\sigma_f \approx 20\%$; needs re-fitting beyond.}
+
+Experiment E7 (Section~\ref{sec:results:e7}) injects multiplicative
+forecast error and shows a clean monotone degradation, summarised
+in Table~\ref{tab:e7}: cost rises from \$262k at $\sigma_f = 0\%$
+to \$337k at $\sigma_f = 30\%$, while fill rate falls from 98.7\%
+to 86.5\%.
+
+Practical implication: a forecasting layer with relative error below
+$\sim$10\% (well within reach of standard exponential smoothing or
+GBM-based forecasters on M5-style data) can adopt the recommendations
+in Section~\ref{sec:results:e3} directly.  Above 20\% error, the
+configuration becomes infeasible against the 92\% target and the
+optimisation should be re-run with the noisy oracle in the loop, which
+the framework supports.
 
 %% -----------------------------------------------------------------------
 \section{Practical Recommendations}
 \label{sec:disc:recommendations}
 
-The experimental results translate into three actionable guidelines for
-supply-chain practitioners:
+The experimental results translate into five actionable guidelines for
+supply-chain practitioners.
 
 \begin{enumerate}
   \item \textbf{Co-optimise inventory and dispatch when transport cost
-        exceeds 50\% of total cost.}  In the E0 baseline, transport
-        accounts for 74\% of total cost — a strong signal that transport
-        is the primary lever.  Rule of thumb: if transport exceeds half
-        the total cost, the joint optimisation approach is likely to
-        return at least 20\% savings.
+        exceeds 50\% of total cost.}  In the E0 baseline transport
+        accounts for 79.5\% of total cost — a strong signal that
+        transport is the primary lever.  As a rule of thumb, if
+        transport exceeds half the total cost, joint optimisation is
+        likely to return at least 25\% savings.
 
   \item \textbf{Accept a deliberate holding-cost increase to unlock
-        consolidation.}  The 4.3:1 leverage ratio found in this study
-        suggests that every additional dollar of safety stock invested
-        in the warehouse returns approximately \$4.30 in transport
-        savings.  This counter-intuitive trade-off is invisible to managers
-        who optimise cost components independently.
+        consolidation.}  The 3.5:1 leverage ratio observed in this
+        study suggests that every additional dollar of safety stock
+        invested in the warehouse layer returns approximately \$3.50
+        in transport-plus-shortage savings.  This counter-intuitive
+        trade-off is invisible to managers who optimise cost
+        components independently.
 
-  \item \textbf{Use the Pareto frontier to negotiate service-level
-        agreements.}  The E4 results show a natural operating point at
-        approximately 95\% fill / \$1.56M and a more expensive regime at
-        98\% fill / \$1.68M, with sharply diminishing returns between the
-        two.  When agreeing SLAs with customers, mapping this frontier
-        allows the supplier to price each incremental service percentage
-        point accurately.
+  \item \textbf{Use the per-SKU constraint when service is contracted
+        per-item.}  The canonical scenario shows that the per-SKU
+        joint optimum (E3\_per\_sku) costs only 2.5\% more than the
+        aggregate variant while guaranteeing every SKU above 98.5\%
+        fill — a small premium for a materially stronger service
+        guarantee.
+
+  \item \textbf{Use the NSGA-II Pareto frontier to negotiate
+        service-level agreements.}  The smooth two-objective frontier
+        in E4 directly prices each percentage point of fill rate:
+        marginal cost is roughly \$8k/pp below 97\% and \$15--20k/pp
+        between 98\% and 99.8\%.  Mapping this curve allows the
+        supplier to price each incremental service percentage point
+        accurately.
+
+  \item \textbf{Forecast accuracy below 10\% relative error is
+        sufficient.}  The joint optima are stable in this regime
+        (E7).  Above 20\% forecast error the policy parameters should
+        be refit using the noisy-oracle methodology of E7.
 \end{enumerate}
 
 %% -----------------------------------------------------------------------
-\section{Limitations}
+\section{Limitations and Scalability}
 \label{sec:disc:limitations}
 
 The following limitations of the current framework should be considered
 when interpreting the results.
 
 \begin{description}
-  \item[Deterministic lead times.] The simulator uses a fixed, deterministic
-        transit time on each lane.  Real transport networks exhibit
-        stochastic lead times driven by congestion, weather, and carrier
-        variability.  Extending to stochastic lead times would increase
-        the optimal safety-stock levels and may change the cost-service
-        trade-off.
+  \item[Deterministic lead times.] The simulator uses a fixed,
+        deterministic transit time on each lane.  Real transport
+        networks exhibit stochastic lead times driven by congestion,
+        weather, and carrier variability.  Extending to stochastic
+        lead times would increase the optimal safety-stock levels and
+        is one regime in which the echelon base-stock policy might
+        regain the empirical advantage that E6 denied it.
 
-  \item[Single DC layer.] The 1N3 topology has one warehouse serving
-        all three retailers.  More complex networks (two DCs, hub-and-spoke)
-        may exhibit different consolidation dynamics.
+  \item[Two-DC layer only.] The 1N3 topology has $N=2$ warehouses (W1,
+        W2) serving the three retailers in a fixed assignment.  More
+        complex networks (multi-tier hub-and-spoke, multiple
+        suppliers, lateral assignment) may exhibit different
+        consolidation dynamics.
 
-  \item[CSV demand without forecasting.] Demand is read from historical
-        M5 CSVs rather than from an online demand forecast.  In practice,
-        policies are triggered by forecasts, not exact future demand, so
-        safety stock should account for forecast error.
+  \item[CSV demand without an integrated forecaster.] Demand is read
+        from historical M5 CSVs and the noisy oracle of E7 wraps that
+        ground-truth series.  In production, policies are triggered
+        by online forecasts, not exact future demand; integrating a
+        live forecaster (e.g.\ exponential smoothing or LightGBM)
+        is the natural next step.
 
   \item[No lateral transshipment.] Retailers cannot transfer stock to
         each other.  Lateral transshipment is a common strategy for
-        balancing inventory across retail locations and could substantially
-        reduce shortage costs.
+        balancing inventory across retail locations and could
+        substantially reduce shortage costs, particularly under
+        disruption.
 
-  \item[Single-SKU optimisation policy.] The main experiments use the
-        base-stock policy for all nodes and SKUs.  The framework supports
-        seven policies but the joint optimisation was not repeated for
-        alternative policy families (e.g.\ $(k,m)$-cycle for all nodes).
+  \item[Steady-state bullwhip is uninformative.] Under base-stock
+        policies and deterministic lead times the bullwhip metric is
+        $\approx 1$ everywhere, so the bullwhip-aware optimiser of E8
+        has nothing to act on.  Stress regimes (E5 disruption, E6
+        $(s,S)$ policy) reveal non-trivial bullwhip; reporting
+        bullwhip in the canonical scenario therefore measures absence
+        of amplification rather than its degree.
 
-  \item[Supply disruption experiment pending.] The analysis of how the
-        optimised configuration degrades under supplier outage (RQ2)
-        has not been conducted and is reserved for future work.
+  \item[Disruption-aware optimisation not yet implemented.] E5
+        characterises the \emph{incidental} robustness of the
+        cost-only optimum.  An optimiser that sees the disruption
+        scenario at search time would in principle find a more robust
+        configuration, possibly at a small steady-state cost premium.
+        This is reserved for future work.
+
+  \item[Demand sampling variance not quantified.] All main experiments
+        (E0--E8) are conditioned on the single realised M5 Walmart
+        demand trace; no confidence intervals around cost or fill-rate
+        estimates are reported.  Experiment E9 establishes that the
+        E3 parameters transfer to Poisson demand (same mean, independent
+        realisations), but a bootstrapped or model-based demand
+        generator would be needed to produce valid credible intervals.
 \end{description}
+
+%% -----------------------------------------------------------------------
+\subsection{Computational scalability}
+\label{sec:disc:scalability}
+
+The 1N3 ($N=2$) topology with five SKUs produces a 30-dimensional
+joint search space: 25 integer base-stock levels (five SKUs for each
+of five non-supplier nodes) and five continuous dispatch thresholds
+(one per lane).  Table~\ref{tab:opt-dims} (Chapter~\ref{chap:optimization})
+shows that the $(s,S)$ and periodic-review E6 variants reach 35
+dimensions.  At this scale, TPE-based Bayesian optimisation converges
+reliably within 100--200 trials, as confirmed by the E3 convergence
+trace (Section~\ref{sec:results:e3}).
+
+Scaling to larger networks increases the joint search space rapidly.
+A 10-node, 10-SKU network with 15 lanes would produce
+approximately $9 \times 10 = 90$ inventory parameters plus
+15 dispatch thresholds, giving a 105-dimensional joint space.
+\textsc{Optuna}'s TPE implementation is commonly cited as tractable
+up to $\sim\!50$ dimensions \citep{AkibaEtAl2019}; beyond that
+threshold sample efficiency degrades and wall-clock time grows
+substantially.  Three mitigations would be appropriate at scale:
+\begin{enumerate}
+  \item \textbf{Hierarchical decomposition.}  Optimise each echelon
+        layer independently, then coordinate at the boundary.
+        This reduces a 105-dimensional joint problem to a sequence of
+        smaller sub-problems at the cost of losing cross-echelon
+        synergies.
+  \item \textbf{Warm-starting from analytical bounds.}  Newsvendor
+        levels provide a good starting point; confining the search to
+        $[\mu_{\text{NV}},\, 2 \mu_{\text{NV}}]$ rather than a broad
+        multiplier range tightens the effective search space.
+  \item \textbf{Per-SKU-family decomposition.}  If demand across SKUs
+        is weakly correlated, each SKU family can be optimised
+        independently, reducing dimensionality by a factor equal to
+        the number of families.
+\end{enumerate}
+These mitigations do not affect the validity of the results reported
+for the canonical 1N3, 5-SKU scenario.  They are noted here to
+characterise the practical scope of the framework without modification.

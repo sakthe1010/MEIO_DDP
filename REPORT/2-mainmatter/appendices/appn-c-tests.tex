@@ -1,85 +1,94 @@
 \chapter{Test Suite Summary}
 \label{appn:tests}
 
-The framework is validated by approximately 80 pytest tests in the
-\texttt{tests/} directory, organised into 21 test modules.  Tests are
-run with \texttt{python -m pytest tests/ -q}.
+The framework is validated by 84 pytest tests organised
+into 21 test modules.  Tests are run with \texttt{python -m pytest tests/ -q}.
 
 %% -----------------------------------------------------------------------
 \section*{Test Modules by Category}
 
-\begin{table}[htbp]
-  \centering
-  \caption{Test modules and their coverage areas.}
-  \renewcommand{\arraystretch}{1.15}
-  \begin{tabular}{@{}lp{9cm}@{}}
-    \toprule
-    Module & Coverage \\
-    \midrule
-    \texttt{test\_deterministic\_constant\_demand} &
-      Base-stock convergence under constant demand; confirms
-      on-hand reaches target within $L+1$ days. \\
-    \texttt{test\_deterministic\_no\_demand} &
-      Simulator does not place orders or accumulate costs when
-      demand is zero. \\
-    \texttt{test\_zero\_lead\_time\_not\_lost} &
-      Goods ordered with lead time 0 arrive same-day; no
-      units are silently dropped. \\
-    \texttt{test\_negative\_demand\_clipped} &
-      Negative demand values are clipped to zero; inventory
-      does not increase from demand. \\
-    \texttt{test\_no\_negative\_on\_hand} &
-      On-hand inventory never goes below zero across all
-      demand and policy configurations. \\
-    \texttt{test\_costs\_and\_kpis} &
-      Holding, transport, ordering, and shortage costs
-      accumulate correctly; warm-up exclusion verified. \\
-    \texttt{test\_inventory\_recovery} &
-      After a demand spike, inventory recovers to base-stock
-      within the expected number of lead-time periods. \\
-    \texttt{test\_local\_flow\_conservation} &
-      Units entering the network equal units leaving plus
-      units stored (flow conservation). \\
-    \texttt{test\_policy\_behavior} &
-      Policy \texttt{order\_qty} returns correct values for
-      each of the seven policy types across edge cases. \\
-    \texttt{test\_ss\_policy\_behavior} &
-      $(s,S)$-specific invariants: no order when IP $> s$;
-      full order-up-to-$S$ when IP $\leq s$. \\
-    \texttt{test\_periodic\_review} &
-      Periodic-review policy only places orders on review
-      days; silent on off-days. \\
-    \texttt{test\_transport} &
-      GreedyLoadPlanner vehicle packing; volume and weight
-      dual constraints; tiered cost (full/half/quarter). \\
-    \texttt{test\_multiroute\_costs} &
-      Multi-mode lane: planner selects mode that minimises
-      cost for the given load. \\
-    \texttt{test\_multiroute\_share} &
-      When multiple modes are available, load is split
-      correctly across vehicles. \\
-    \texttt{test\_routes\_and\_policies} &
-      End-to-end test: correct policy applied per node/SKU
-      combination as specified in config. \\
-    \texttt{test\_system\_properties} &
-      Aggregate system-level invariants (non-negative costs,
-      fill rate in $[0,1]$, bullwhip ratio computed). \\
-    \texttt{test\_finite\_supplier\_propagation} &
-      Finite-capacity supplier correctly limits fulfilment;
-      backlog propagates downstream. \\
-    \texttt{test\_stochastic\_leadtime} &
-      Simulator handles variable lead times drawn from a
-      distribution without losing shipments. \\
-    \texttt{test\_112\_timing} &
-      Timing of receive-then-order within the daily tick
-      for a 1-supplier, 1-warehouse, 2-retailer topology. \\
-    \texttt{test\_variability} &
-      Demand CV and order CV computed correctly; bullwhip
-      metric is $\geq 1$ for base-stock policy under
-      variable demand. \\
-    \texttt{conftest} &
-      Shared pytest fixtures: base config dict, simple
-      1-supplier, 1-retailer network. \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+\begin{itemize}
+  \item \textbf{test\_deterministic\_constant\_demand} ---
+        Base-stock convergence under constant demand; confirms on-hand
+        reaches target within $L+1$ days.
+
+  \item \textbf{test\_deterministic\_no\_demand} ---
+        Simulator does not place orders or accumulate costs when demand
+        is zero.
+
+  \item \textbf{test\_zero\_lead\_time\_not\_lost} ---
+        Goods ordered with lead time 0 arrive same-day; no units are
+        silently dropped.
+
+  \item \textbf{test\_negative\_demand\_clipped} ---
+        Negative demand values are clipped to zero; inventory does not
+        increase from demand.
+
+  \item \textbf{test\_no\_negative\_on\_hand} ---
+        On-hand inventory never goes below zero across all demand and
+        policy configurations.
+
+  \item \textbf{test\_costs\_and\_kpis} ---
+        Holding, transport, ordering, and shortage costs accumulate
+        correctly; warm-up exclusion verified.
+
+  \item \textbf{test\_inventory\_recovery} ---
+        After a demand spike, inventory recovers to base-stock within
+        the expected number of lead-time periods.
+
+  \item \textbf{test\_local\_flow\_conservation} ---
+        Units entering the network equal units leaving plus units stored
+        (flow conservation).
+
+  \item \textbf{test\_policy\_behavior} ---
+        Policy \texttt{order\_qty} returns correct values for each of
+        the seven policy types across edge cases.
+
+  \item \textbf{test\_ss\_policy\_behavior} ---
+        $(s,S)$-specific invariants: no order when IP $> s$; full
+        order-up-to-$S$ when IP $\leq s$.
+
+  \item \textbf{test\_periodic\_review} ---
+        Periodic-review policy only places orders on review days;
+        silent on off-days.
+
+  \item \textbf{test\_transport} ---
+        GreedyLoadPlanner vehicle packing; volume and weight dual
+        constraints; tiered cost (full/half/quarter).
+
+  \item \textbf{test\_multiroute\_costs} ---
+        Multi-mode lane: planner selects mode that minimises cost for
+        the given load.
+
+  \item \textbf{test\_multiroute\_share} ---
+        When multiple modes are available, load is split correctly
+        across vehicles.
+
+  \item \textbf{test\_routes\_and\_policies} ---
+        End-to-end test: correct policy applied per node/SKU combination
+        as specified in config.
+
+  \item \textbf{test\_system\_properties} ---
+        Aggregate system-level invariants (non-negative costs, fill rate
+        in $[0,1]$, bullwhip ratio computed).
+
+  \item \textbf{test\_finite\_supplier\_propagation} ---
+        Finite-capacity supplier correctly limits fulfilment; backlog
+        propagates downstream.
+
+  \item \textbf{test\_stochastic\_leadtime} ---
+        Simulator handles variable lead times drawn from a distribution
+        without losing shipments.
+
+  \item \textbf{test\_112\_timing} ---
+        Timing of receive-then-order within the daily tick for a
+        1-supplier, 1-warehouse, 2-retailer topology.
+
+  \item \textbf{test\_variability} ---
+        Demand CV and order CV computed correctly; bullwhip metric is
+        $\geq 1$ for base-stock policy under variable demand.
+
+  \item \textbf{conftest} ---
+        Shared pytest fixtures: base config dict, simple 1-supplier,
+        1-retailer network.
+\end{itemize}

@@ -1,0 +1,3 @@
+Exp,Description,Total Cost,vs E0,Holding %,Transport %,Ordering %,Shortage %,Fill Rate %
+E0,E0 — Analytical Baseline,"251,127",+0.0%,8.3,66.0,15.5,10.2,91.59
+E3,E3 — Joint Opt (≥92%),"192,696",+23.3%,35.6,37.0,20.2,7.3,96.29

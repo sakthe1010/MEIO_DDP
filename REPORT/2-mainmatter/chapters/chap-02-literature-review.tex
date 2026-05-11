@@ -1,7 +1,7 @@
 \chapter{Literature Review}
 \label{chap:litreview}
 
-This chapter reviews the theoretical foundations underlying the DDP and
+This chapter reviews the theoretical foundations underlying the study and
 situates the contribution within the existing literature.  Seven areas
 are covered: single-echelon inventory theory, Clark-Scarf multi-echelon
 optimality, periodic-review and cyclic policies, the bullwhip effect,
@@ -35,8 +35,8 @@ $\alpha$.
 The \textbf{base-stock (order-up-to) policy} extends the newsvendor to a
 multi-period setting with backlogging.  Each period the stocking point
 orders up to a fixed target $S$, which is also the \emph{inventory
-position} target.  Under i.i.d. demand and deterministic lead time $L$,
-the optimal base-stock level is:
+position} target.  Under i.i.d. demand and deterministic lead time $L$
+\citep{Zipkin2000}, the optimal base-stock level is:
 
 \begin{equation}
   S^* = \mu(L+1) + z_\alpha \sigma\sqrt{L+1}
@@ -99,11 +99,12 @@ following assumptions:
 When these assumptions are violated — as they are in the divergent 1N3
 topology with vehicle capacity and real M5 demand — the Clark-Scarf
 solution is no longer guaranteed to be optimal.  This gap motivates
-the simulation-optimisation approach taken in this DDP.
+the simulation-optimisation approach taken in this study.
 
 %% -----------------------------------------------------------------------
 \section{Periodic-Review and Cyclic Policies}
 \label{sec:lit:periodic}
+\vspace{1em}
 
 \subsection{$(R,S)$ periodic-review policy}
 
@@ -121,7 +122,7 @@ near-optimal cost in multi-item inventory systems while enabling
 \emph{co-ordinated replenishment}.  By fixing the days on which each
 item is reviewed, transport planners can schedule full-truckload
 deliveries in advance, reducing the empty-vehicle problem that plagues
-unco-ordinated ordering.
+non-coordinated ordering.
 
 %% -----------------------------------------------------------------------
 \section{The Bullwhip Effect}
@@ -134,17 +135,25 @@ root causes: demand signal processing (over-reaction to demand
 fluctuations), order batching, price fluctuations, and rationing games.
 
 The most widely used empirical metric for bullwhip is the ratio of order
-variability to demand variability \citep{ChenEtAl2000}:
+variability to demand variability \citep{ChenEtAl2000}, applied
+\emph{per echelon}:
 
 \begin{equation}
-  \text{Bullwhip ratio} =
-  \frac{\text{CV}^2(\text{orders placed by node } n)}
-       {\text{CV}^2(\text{demand faced by node } n)}
+  \text{BW}_{n,s} \;=\;
+  \frac{\text{CV}^2(\text{orders placed by node } n \text{ for SKU } s)}
+       {\text{CV}^2(\text{demand faced by node } n \text{ for SKU } s)}
 \end{equation}
 
 A ratio greater than one at an upstream node indicates amplification.
-This metric is computed for all nodes and SKUs in the post-warm-up
-window of each simulation run (Section~\ref{sec:meth:bullwhip}).
+A subtlety, important for multi-echelon networks, is the choice of
+denominator: the ``demand faced by node $n$'' is the \emph{external}
+customer demand only when $n$ is a retailer.  At an internal node such
+as a warehouse, the relevant denominator is the time series of
+\emph{aggregated child orders} arriving at $n$, not the raw external
+demand at any one downstream retailer \citep{LeeEtAl1997}.  Failing to
+aggregate produces an inflated, mis-attributed ratio at upstream nodes.
+This metric is computed per (node, SKU) on the post-warm-up window of
+each simulation run (Section~\ref{sec:meth:bullwhip}).
 
 %% -----------------------------------------------------------------------
 \section{Transport Consolidation in Inventory Models}
@@ -156,16 +165,17 @@ vehicle-based transport.  In practice, a truck that is 50\% full
 and a truck that is 100\% full cost nearly the same to operate; the
 cost-per-unit is therefore roughly twice as high for the half-full truck.
 
-\citet{JagermanEtAl1990} and subsequent work on \emph{inventory with
-vehicle routing} showed that the interaction between inventory and
-transport decisions can be significant: raising safety stock at the
-retailer allows the supplier to batch orders and dispatch full trucks,
-reducing per-unit transport cost by 30--60\% in realistic settings.
+Research on coordinated inventory and transport (see, e.g.,
+\citealt{JagermanEtAl1990} and related work) showed that the
+interaction between inventory and transport decisions can be significant:
+coordinating order quantities with vehicle load sizes allows suppliers
+to dispatch fuller trucks, substantially reducing per-unit transport
+cost in realistic settings.
 
 Despite this, the dominant MEIO literature --- including Clark-Scarf,
 Graves-Willems, and most textbook treatments --- ignores vehicle capacity
 and consolidation.  This creates the gap that the joint optimisation
-framework in this DDP addresses: when transport cost dominates the budget,
+framework in this study addresses: when transport cost dominates the budget,
 \emph{inventory and transport decisions must be optimised jointly}.
 
 %% -----------------------------------------------------------------------
@@ -175,23 +185,20 @@ framework in this DDP addresses: when transport cost dominates the budget,
 When the performance surface of a stochastic or complex system cannot be
 expressed analytically, \textbf{simulation-optimisation} uses a simulator
 as an oracle and an optimisation algorithm to search the parameter space
-\citep{FuEtAl2005}.
+\citep{FuEtAl2005}. Various optimisation approaches are discussed here.
 
-\subsection{Genetic algorithms and evolutionary methods}
+\subsection{Classical gradient-free approaches}
 
-Genetic algorithms (GAs) have been applied to MEIO parameter tuning since
-the 1990s.  They are flexible and parallelisable but typically require
-thousands of function evaluations to converge and are not sample-efficient
-for smooth, low-dimensional surfaces.
-
-\subsection{Bayesian optimisation and Gaussian processes}
-
-\textbf{Bayesian optimisation} fits a probabilistic surrogate (typically a
-Gaussian process) to observed function values and uses an acquisition
-function (e.g.\ expected improvement) to choose the next evaluation point.
-It is highly sample-efficient for smooth functions in up to $\sim\!20$
-dimensions but scales cubically in the number of observations, making it
-slow for larger search spaces.
+Genetic algorithms (GAs) \citep{Goldberg1989} have been applied to MEIO
+parameter tuning since the 1990s.  They are flexible and parallelisable
+but typically require thousands of function evaluations to converge and
+are not sample-efficient for smooth, low-dimensional surfaces.
+\textbf{Bayesian optimisation} \citep{ShahriariEtAl2016} addresses the
+sample-efficiency gap by fitting a Gaussian-process surrogate and using an
+acquisition function (e.g.\ expected improvement) to select the next
+evaluation point.  It is highly sample-efficient for smooth functions in up
+to $\sim\!20$ dimensions but scales cubically in the number of observations,
+making it slow for the 30-dimensional joint space studied here.
 
 \subsection{Tree-structured Parzen Estimator (TPE)}
 
@@ -202,29 +209,83 @@ and one for the rest ($g(x)$).  The acquisition function is
 $\ell(x) / g(x)$, maximised by drawing many samples from $\ell(x)$ and
 selecting the one with the highest ratio.
 
-TPE is well-suited to this DDP's optimisation problem because:
+TPE is well-suited to this study's optimisation problem because:
 \begin{itemize}
   \item It handles mixed-integer variables (integer base-stock levels and
         continuous dispatch thresholds) natively.
   \item It scales approximately linearly in dimensionality, remaining
-        tractable for the 20-dimensional joint search space.
+        tractable for the 30-dimensional joint search space (25 stock
+        levels + 5 dispatch thresholds).
   \item It is implemented in \textsc{Optuna} \citep{AkibaEtAl2019},
         an open-source framework with support for parallelism and
         constraint handling.
 \end{itemize}
+
+\subsection{Multi-objective optimisation: NSGA-II}
+
+When the goal is not to satisfy a hard service-level constraint but to
+\emph{trace the trade-off} between cost and service level, a
+multi-objective evolutionary algorithm becomes appropriate.
+\textbf{NSGA-II} \citep{DebEtAl2002} maintains a population of candidate
+solutions and uses non-dominated sorting and crowding-distance
+diversification to converge on the Pareto front in a single run.  In
+this study, NSGA-II — implemented via Optuna's NSGAIISampler —
+minimises $\bigl(C_{\text{total}},\;-\hat{\alpha}\bigr)$ jointly
+(i.e.\ minimises total cost while maximising fill rate $\hat{\alpha}$)
+and returns the non-dominated set as the Pareto front.  This produces a
+smooth, monotone cost--service curve in a single run, replacing the
+earlier constraint-sweep approach in which the joint optimiser was
+re-run independently at each of several fill-rate targets; that
+constraint-sweep is retained as a sanity-check overlay
+(see Section~\ref{sec:opt:pareto}).
+
+\subsection{Neural and reinforcement-learning approaches}
+\label{sec:lit:drl}
+
+Recent years have seen growing interest in applying \textbf{deep
+reinforcement learning} (DRL) to inventory control.
+\citet{HubbsEtAl2020} introduce \textsc{OR-Gym}, an
+OpenAI-Gym-compatible benchmark suite that includes single-echelon and
+serial multi-echelon environments; they show that policy-gradient methods
+(PPO, A2C) can match or exceed newsvendor-optimal policies in these
+settings.
+\citet{GijsbrechtsEtAl2022} demonstrate that DRL agents can learn
+near-optimal policies for the lost-sales problem with positive lead
+times — a notoriously intractable case for exact methods.
+\citet{PerezEtAl2021} extend DRL to stochastic serial systems, and
+\citet{BouteEtAl2022} provide a practitioner-oriented survey of DRL for
+supply-chain management.
+
+Despite this progress, DRL approaches present several challenges for the
+problem studied here.  First, the action space of the current framework
+is \emph{mixed-integer}: base-stock levels are discrete (units) while
+dispatch thresholds are continuous.  Policy-gradient methods require
+differentiable action distributions, which are poorly suited to large
+integer spaces without continuous relaxation.  Second, DRL requires
+extensive environment interaction to learn a policy from scratch; the
+30-dimensional joint search space in this study would require
+substantially more than $10^{3}$ simulator evaluations to converge,
+rendering training time prohibitive within the scope of this study.  Third, the
+parameters optimised by this framework are physically interpretable:
+base-stock levels map directly to safety-stock decisions and dispatch
+thresholds to consolidation strategy, supporting managerial interpretation
+of the result.  TPE was therefore chosen over DRL for its
+sample-efficiency, mixed-integer native support, and the interpretability
+of its output.
 
 %% -----------------------------------------------------------------------
 \section{Existing MEIO Software}
 \label{sec:lit:software}
 
 Several simulation and optimisation tools are available for supply-chain
-modelling, but none satisfies all requirements of this DDP simultaneously.
+modelling, but none satisfies all requirements of this study simultaneously.
 
 \begin{description}
   \item[\textsc{SimPy}] A Python discrete-event simulation library.
         General-purpose and well-maintained, but provides no MEIO domain
-        primitives (no nodes, no policies, no transport).  Building an
-        MEIO simulator from SimPy requires substantial boilerplate.
+        primitives — no nodes, policies, or transport layer.  Building an
+        MEIO simulator from SimPy requires implementing all domain logic
+        from scratch.
 
   \item[\textsc{AnyLogic}] A commercial simulation platform with a
         supply-chain library.  Powerful and well-documented, but
@@ -239,10 +300,11 @@ modelling, but none satisfies all requirements of this DDP simultaneously.
 
   \item[\textsc{Optuna}] An open-source Bayesian/TPE optimisation
         framework \citep{AkibaEtAl2019}.  Used as the outer
-        optimisation loop in this DDP; does not include simulation
+        optimisation loop in this study; does not include simulation
         functionality.
 \end{description}
-\vspace{1em}
-The gap identified is clear: there is no open, MEIO-specific simulation + optimisation framework that handles
-multi-SKU demand, arbitrary DAG topologies, and vehicle-capacity-aware
-transport.  This DDP fills that gap.
+The tools surveyed above cover different parts of the problem well, but none combines
+an MEIO-specific simulation engine, a joint inventory-and-transport optimiser, and
+support for arbitrary DAG topologies and vehicle-capacity constraints in a single,
+open, scriptable package.  This work builds such a framework and uses it to study
+the empirical value of joint optimisation on realistic demand data.

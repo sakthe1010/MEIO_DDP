@@ -7,7 +7,7 @@
 
 Inventory management decisions lie at the heart of supply-chain efficiency,
 resilience, and cost-effectiveness.  Modern supply chains are hierarchical:
-goods flow from raw-material suppliers through distribution centres (DCs)
+goods flow from manufacturing centres through distribution centres (DCs)
 to retail outlets, with inventory held at each stage.  Managing inventory
 across these stages — a problem known as \textbf{Multi-Echelon Inventory
 Optimisation (MEIO)} — requires making critical replenishment decisions
@@ -19,7 +19,7 @@ single-echelon counterpart:
 
 \begin{enumerate}
   \item \textbf{Coupling of stockouts.}  A stockout at a DC propagates
-        downstream: retailers awaiting replenishment accumulate unfilled
+        downstream. retailers awaiting replenishment accumulate unfilled
         demand (backlog), incurring shortage costs.  Simultaneously, the
         DC's depleted inventory triggers a large replenishment order
         upstream, stressing the supplier's capacity.
@@ -54,7 +54,7 @@ deplete retailer safety stock to dangerous levels several weeks later.  This
 makes experimentation on production systems costly and often impractical.
 
 %% -----------------------------------------------------------------------
-\section{Why a Digital Twin?}
+\section{Need for a Digital Twin}
 \label{sec:intro:dt}
 
 The classical solution to the MEIO problem is the Clark-Scarf echelon
@@ -75,19 +75,22 @@ networks under a set of idealising assumptions:
 Real supply chains routinely violate all four assumptions.  Suppliers have
 capacity limits; lead times vary with congestion; transport costs are
 non-linear functions of vehicle utilisation.  When transport cost dominates
-the budget — as in the system studied in this DDP, where it accounts for
-74\% of total cost at the analytical baseline — ignoring vehicle capacity
-and consolidation leaves enormous savings on the table.
+the budget — as in the network analysed here, where transport accounts for
+79.5\% of total cost at the analytical baseline — ignoring vehicle capacity
+and consolidation is highly suboptimal.
 
 In practice, decision-makers frequently rely on simulation tools to evaluate
 inventory policies and operational scenarios before deployment in order to
 avoid the operational risks described above.  However, many available
 simulation tools are proprietary, domain-specific, or tightly coupled to
 particular industrial settings, limiting their transparency, extensibility,
-and suitability for systematic research (Chapter~\ref{chap:litreview} surveys
-the landscape in detail).  An open, configurable, MEIO-specific simulation
-framework that handles multi-SKU demand, arbitrary network topologies, and
-vehicle-capacity-aware transport has not previously been available.
+and suitability for systematic research --- Chapter~\ref{chap:litreview} surveys
+the landscape in detail.  To the best of our knowledge, an open, configurable,
+MEIO-specific simulation framework that handles multi-SKU demand, arbitrary
+network topologies, and vehicle-capacity-aware transport has not previously
+been available.  Among the tools surveyed in
+Section~\ref{sec:lit:software} (SimPy, AnyLogic, simopt, OR-Gym), none
+combines these capabilities in a single configurable framework.
 
 A \textbf{digital-twin simulation} is a computational replica of a supply
 chain that can evaluate \emph{any} policy under \emph{any} set of
@@ -104,33 +107,54 @@ inapplicable \citep{FuEtAl2005}.
 \section{Contributions}
 \label{sec:intro:contributions}
 
-This DDP makes the following research contributions:
+This study makes the following research contributions:
 
 \begin{enumerate}
   \item \textbf{A modular, tested digital-twin simulation framework for
         MEIO.}  The framework implements seven inventory control policies
-        (base-stock, $(s,S)$, $(R,Q)$, $(R,S)$, order-up-to with phase
-        offset, $(k,m)$-cycle, and echelon base-stock), an arbitrary
-        DAG-topology network model, and a transport layer that enforces
-        simultaneous volume and weight capacity constraints with tiered
-        cost schedules.  The codebase is validated by approximately 80
-        pytest tests covering invariants, policy behaviour, and transport
-        mechanics.
+        --- base-stock, $(s,S)$, $(R,Q)$, $(R,S)$, order-up-to with phase
+        offset, $(k,m)$-cycle, and echelon base-stock --- together with an
+        arbitrary DAG-topology network model and a transport layer that
+        enforces simultaneous volume and weight capacity constraints with
+        tiered cost schedules.  The codebase is validated by 84 pytest
+        tests covering simulator invariants, policy behaviour, transport
+        mechanics, and the per-echelon bullwhip metric.
 
   \item \textbf{An Optuna-TPE-based joint optimiser with fill-rate
         constraints.}  The optimiser searches over a mixed-integer space
-        of up to 20 parameters (15 base-stock levels + 5 dispatch
+        of up to 30 parameters (25 base-stock levels + 5 dispatch
         thresholds) and enforces a minimum fill-rate target via a soft
-        penalty.  Three modes are supported: inventory-only,
-        transport-only, and joint.
+        penalty.  Three modes are supported: inventory-only, transport-only,
+        and joint.  A per-SKU constraint mode ensures no individual SKU is
+        sacrificed to satisfy an aggregate service-level target.
 
   \item \textbf{Empirical demonstration that joint optimisation
-        outperforms single-axis optimisation.}  On a 5-SKU, 1N3 network
-        with M5 Walmart demand, joint optimisation achieves a 39\% total
-        cost reduction relative to the analytical newsvendor baseline while
-        simultaneously raising fill rate from 86\% to 95\% — results
-        that neither inventory-only nor transport-only optimisation can
-        match.
+        outperforms single-axis optimisation.}  On a 5-SKU 1N3 network
+        (1 supplier $\to$ 2 warehouses $\to$ 3 retailers) with M5 Walmart
+        demand, joint optimisation achieves a 37\% total cost reduction
+        relative to the analytical newsvendor baseline while simultaneously
+        raising fill rate above the 92\% service-level target --- results
+        that neither inventory-only nor transport-only optimisation can match.
+
+  \item \textbf{A two-objective Pareto study of the cost--service
+        trade-off.}  An NSGA-II optimiser produces a smooth, non-dominated
+        frontier spanning the full range from cost-minimising to
+        service-maximising configurations, revealing a clear knee in
+        marginal cost per fill-rate point and providing a principled basis
+        for service-level negotiation.
+
+  \item \textbf{Four extension experiments characterising robustness and
+        scope.}  Other experiments cover disruption
+        robustness (E5), policy comparison on equal transport footing (E6),
+        forecast-error sensitivity (E7), and bullwhip-aware joint
+        optimisation (E8) --- together establishing the generality of the
+        joint optimisation approach.
+
+  \item \textbf{Stochastic demand robustness and preliminary validation.}
+        The jointly-optimised parameters are shown to transfer to Poisson
+        demand without re-optimisation (E9), and four preliminary
+        validation experiments (EV1--EV4) confirm simulator correctness
+        against known theoretical behaviours.
 \end{enumerate}
 
 %% -----------------------------------------------------------------------
@@ -158,54 +182,16 @@ optimisation framework: search-space encoding, the fill-rate constraint
 mechanism, and the re-evaluation discipline.
 
 \textbf{Chapter~\ref{chap:methodology}} details the experimental design,
-dataset (M5 Walmart), warm-up exclusion procedure, multi-seed statistical
-validation, and the six main optimisation experiments (E0--E4).
+dataset (M5 Walmart), warm-up exclusion, and multi-seed validation.  It
+covers sixteen experiments: seven core optimisation experiments (E0--E4),
+four extension experiments (E5--E8), one stochastic robustness test (E9),
+and four preliminary validation experiments (EV1--EV4).
 
-\textbf{Chapter~\ref{chap:results}} presents the results of all
-experiments with full cost decompositions, fill-rate breakdowns,
-bullwhip ratios, and a cross-experiment comparison.
-
-\textbf{Chapter~\ref{chap:discussion}} synthesises the results, answers
-the research questions, draws practical recommendations, and acknowledges
-limitations.
+\textbf{Chapter~\ref{chap:results}} presents results of all experiments
+with cost decompositions, fill-rate breakdowns, bullwhip ratios, and a
+cross-experiment synthesis table.
 
 \textbf{Chapter~\ref{chap:conclusion}} summarises the contributions,
-quantifies the headline results, and outlines the future research roadmap.
+quantifies the key findings, and outlines the future research roadmap.
 
 %% -----------------------------------------------------------------------
-\section{Development Trajectory}
-\label{sec:intro:trajectory}
-
-The DDP unfolded in three phases over approximately 1.5 years.
-
-\textbf{Phase 1 — Prototype and validation.}
-A single-SKU simulator was built on a simplified 2-warehouse
-$\times$ 3-retailer topology.  Four controlled validation experiments
-(EV1--EV4) using synthetic and M5 Walmart demand confirmed that the
-discrete-event loop, shipment pipeline, and backlog mechanics behave
-as predicted by theory.  This phase established confidence in the
-simulator's correctness before adding complexity.
-
-\textbf{Phase 2 — Transport layer and scale-up.}
-The most significant architectural addition in this phase was the
-\textbf{transport module}: a vehicle-capacity-aware layer implementing
-dual volume and weight constraints, tiered cost schedules (full-,
-half-, and quarter-load rates), and a configurable minimum dispatch
-utilisation threshold with a maximum-wait timeout.  This module
-transformed the simulator from a pure inventory tool into a
-joint inventory-transport digital twin — the distinguishing feature
-of the framework.  Concurrently, the network was extended to the
-5-SKU 1N3 topology, the inventory policy suite grew from two
-implementations (base-stock, $(s,S)$) to seven, and a comprehensive
-test suite, multi-seed validation, and bullwhip metric were
-instrumented.
-
-\textbf{Phase 3 — Joint optimisation.}
-The Optuna-TPE optimiser was integrated and the main experiments
-(E0--E4) were designed and executed.  The joint optimiser searches
-inventory base-stock levels and transport dispatch thresholds
-simultaneously — a search structure only made meaningful by the
-transport layer built in Phase~2.  Joint optimisation of inventory
-and transport parameters emerged as the central research contribution,
-achieving a 39\% cost reduction over the analytical baseline while
-exceeding the 92\% fill-rate target.

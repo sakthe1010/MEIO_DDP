@@ -56,7 +56,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.run_simulation import build_from_config, build_volume_map, build_weight_map, build_disruptions
+from scripts.run_simulation import (
+    build_from_config, build_volume_map, build_weight_map, build_disruptions,
+    _read_csv_series,
+)
 from engine.simulator import Simulator
 from optimizer.optimize import run_optimizer, evaluate, _apply_params
 
@@ -76,9 +79,10 @@ EXPERIMENT_META: Dict[str, dict] = {
             "joint optimization."
         ),
         "methodology": (
-            "Base-stock levels are set using the newsvendor critical ratio: "
-            "S = μ·(L+1) + z·σ·√(L+1), where L is lead time, μ and σ are demand mean "
-            "and standard deviation, and z is the service-level z-score. "
+            "Base-stock levels are computed at runtime from the realised demand series: "
+            "S = μ·(L+1) + z·σ·√(L+1), where L is the lane lead time, μ and σ are the "
+            "post-warmup mean and standard deviation of demand, and z is the service-level "
+            "z-score. Warehouse levels are sized for aggregated downstream demand. "
             "No minimum dispatch utilization is enforced — every order is shipped "
             "immediately regardless of vehicle fill level."
         ),
@@ -88,6 +92,7 @@ EXPERIMENT_META: Dict[str, dict] = {
             "reference for optimization experiments."
         ),
         "report_section": "Section 4.1 — Baseline Performance",
+        "recommended_warmup": 30,
     },
     "E1a": {
         "id": "E1a",
@@ -111,6 +116,7 @@ EXPERIMENT_META: Dict[str, dict] = {
             "counter-productive."
         ),
         "report_section": "Section 4.2 — Isolated Transport Consolidation",
+        "recommended_warmup": 30,
     },
     "E1b": {
         "id": "E1b",
@@ -134,6 +140,7 @@ EXPERIMENT_META: Dict[str, dict] = {
             "inventory levels which were not designed for consolidation."
         ),
         "report_section": "Section 4.3 — Transport-Only Optimization",
+        "recommended_warmup": 30,
     },
     "E2": {
         "id": "E2",
@@ -154,6 +161,7 @@ EXPERIMENT_META: Dict[str, dict] = {
             "costs (the largest component) are untouched."
         ),
         "report_section": "Section 4.4 — Inventory-Only Optimization",
+        "recommended_warmup": 30,
     },
     "E3": {
         "id": "E3",
@@ -178,6 +186,28 @@ EXPERIMENT_META: Dict[str, dict] = {
             "while maintaining service level targets."
         ),
         "report_section": "Section 4.5 — Joint Optimization (Main Result)",
+        "recommended_warmup": 30,
+    },
+    "E3_per_sku": {
+        "id": "E3_per_sku",
+        "title": "Joint Optimization with per-SKU fill constraint",
+        "purpose": (
+            "Re-run E3 but apply the fill rate constraint per-SKU rather than aggregated. "
+            "Every SKU must individually meet the target. This eliminates the loophole "
+            "where popular SKUs over-serve and compensate for under-served ones."
+        ),
+        "methodology": (
+            "Same Optuna joint search as E3, but the objective penalty is "
+            "Σ_sku max(0, target − fill_sku) × PENALTY_PER_PCT. Best feasible trial is "
+            "the one where every SKU's fill rate meets the target."
+        ),
+        "hypothesis": (
+            "Per-SKU constraint will raise total cost slightly compared to E3 (the "
+            "weakly-served SKUs need more inventory) but will eliminate the SKU-level "
+            "service-level shortfall observed in E3."
+        ),
+        "report_section": "Section 4.5b — Per-SKU Joint Optimization",
+        "recommended_warmup": 30,
     },
     "E4": {
         "id": "E4",
@@ -199,6 +229,117 @@ EXPERIMENT_META: Dict[str, dict] = {
             "system approaches 100% service level."
         ),
         "report_section": "Section 4.6 — Cost–Service Level Pareto Frontier",
+        "recommended_warmup": 30,
+    },
+    "E5": {
+        "id": "E5",
+        "title": "Disruption Robustness",
+        "purpose": (
+            "Inject a supply-side disruption at warehouse W1 and compare how E0 (analytical) "
+            "and E3 (joint-optimized) parameters cope. Measures cost overhead, service "
+            "degradation, and recovery time — the stress test the analytical baseline can't "
+            "anticipate."
+        ),
+        "methodology": (
+            "Run the same 1n3_5sku scenario with a 14-day W1 outage centred at 60% through "
+            "the post-warmup horizon. Two configurations: E0 params and E3 params. "
+            "Time-to-recover = days for fill rate to return within 1pp of the pre-disruption value."
+        ),
+        "hypothesis": (
+            "E3's elevated buffer stocks (driven by transport consolidation) will absorb the "
+            "shock better, recovering faster than E0 even though the disruption was not in "
+            "the optimization objective."
+        ),
+        "report_section": "Section 4.7 — Disruption Robustness",
+        "recommended_warmup": 30,
+    },
+    "E6": {
+        "id": "E6",
+        "title": "Policy Comparison (Core 4)",
+        "purpose": (
+            "Compare four inventory policies — base_stock, ss, periodic_review, "
+            "echelon_stock — on the same scenario after individual Optuna tuning. "
+            "Tests the core thesis claim that network-wide coordination (echelon) "
+            "beats local policies."
+        ),
+        "methodology": (
+            "Each policy gets its own 100-trial Optuna search over its native parameter "
+            "space (mode=inventory, dispatch fixed at 0.0, fill ≥ 92%). Headline metrics: "
+            "total cost, fill rate, holding/transport mix, bullwhip per echelon."
+        ),
+        "hypothesis": (
+            "echelon_stock ≤ base_stock ≈ ss < periodic_review on cost. "
+            "Echelon wins because warehouses see downstream pipeline; periodic loses to "
+            "review delay."
+        ),
+        "report_section": "Section 4.8 — Policy Comparison",
+        "recommended_warmup": 30,
+    },
+    "E7": {
+        "id": "E7",
+        "title": "Demand Forecasting Sensitivity",
+        "purpose": (
+            "Replace the perfect-information assumption with noisy forecasts and measure "
+            "how cost, fill rate, and bullwhip degrade as forecast error grows."
+        ),
+        "methodology": (
+            "Wrap the demand series with a noisy-oracle: forecast(t+L) = true(t+L) × "
+            "(1 + N(0, σ_f)). Run E3 params with σ_f ∈ {0%, 5%, 10%, 20%, 30%}. Policies "
+            "consume the forecast for sizing decisions; the simulator still receives the "
+            "true demand."
+        ),
+        "hypothesis": (
+            "Cost and bullwhip rise monotonically with σ_f; fill rate drops because under-"
+            "forecasting causes stock-outs. This quantifies the value of forecast accuracy."
+        ),
+        "report_section": "Section 4.9 — Forecast Uncertainty",
+        "recommended_warmup": 30,
+    },
+    "E8": {
+        "id": "E8",
+        "title": "Bullwhip-Aware Joint Optimization",
+        "purpose": (
+            "Add bullwhip ratio as a secondary optimization objective. Tests whether a small "
+            "cost increase can buy a meaningful bullwhip reduction — directly addressing "
+            "the supply-chain literature's main motivation for measuring bullwhip."
+        ),
+        "methodology": (
+            "Joint-mode optimizer with augmented objective: total_cost + λ × Σ_node "
+            "bullwhip_ratio. Sweep λ ∈ {0, 1e3, 1e4, 1e5, 1e6} and plot the (cost, bullwhip) "
+            "Pareto. Bullwhip is the corrected per-echelon metric from A2."
+        ),
+        "hypothesis": (
+            "There exists a small λ such that cost rises < 5% while total bullwhip drops "
+            ">20% — i.e., the cost-optimal solution from E3 is bullwhip-suboptimal and a "
+            "modest tradeoff is worthwhile."
+        ),
+        "report_section": "Section 4.10 — Bullwhip-Aware Optimization",
+        "recommended_warmup": 30,
+    },
+    "E9": {
+        "id": "E9",
+        "title": "Stochastic Demand Robustness",
+        "purpose": (
+            "Test whether the jointly-optimised parameters from E3 (derived under "
+            "deterministic M5 demand) transfer to a stochastic demand environment. "
+            "This is a robustness test, not a re-optimisation: the E3 parameter set "
+            "is held fixed and evaluated under Poisson demand with λ equal to the "
+            "M5 mean per retailer and SKU."
+        ),
+        "methodology": (
+            "For each demand series in the config (type=csv), λ is computed as the "
+            "mean daily demand over the 365-day evaluation window (days start_index "
+            "to start_index+365). The config is cloned with all demand generators "
+            "replaced by Poisson(λ). The E3 best-params are applied without "
+            "re-optimisation. Ten independently seeded Poisson realisations are run; "
+            "mean ± std of total cost and fill rate are reported."
+        ),
+        "hypothesis": (
+            "E3 params generalise to Poisson demand: fill rate holds within 2 pp of "
+            "the deterministic E3 result and total cost remains within 5%."
+        ),
+        "report_section": "Section 4.11 — Stochastic Demand Robustness",
+        "recommended_warmup": 30,
     },
 }
 
@@ -281,31 +422,60 @@ def run_one(cfg: dict, volume_per_unit: dict, label: str,
         node_kpis["fulfilled_sum"] / node_kpis["demand_sum"].replace(0, 1)
     )
 
-    # ── Bullwhip effect ───────────────────────────────────────────────────────
+    # ── Bullwhip effect (per-echelon, Lee/Padmanabhan/Whang 1997) ─────────────
+    # For node N with children C1..Ck, the *incoming* demand series is the daily
+    # sum of orders from all children. The bullwhip ratio at N is
+    #   CV²(orders out of N) / CV²(orders into N).
+    # Retailers face external demand instead of child orders.
     orders_df = pd.DataFrame(sim.orders_log)
     orders_df = orders_df[orders_df["t"] >= warmup_periods]
 
-    demand_cv2 = {}
-    for sku, grp in eod[eod["node_id"].isin(retailer_ids)].groupby("sku"):
-        d = grp["demand"]
-        mean_d = d.mean()
-        demand_cv2[sku] = (d.std() / mean_d) ** 2 if mean_d > 0 else 0.0
+    # Map child -> parent from edges (a child can only have one parent in this DAG).
+    child_to_parent: Dict[str, str] = {e["to"]: e["from"] for e in cfg["edges"]}
+
+    # Per-node, per-SKU incoming-demand series.
+    incoming_series: Dict[tuple, pd.Series] = {}
+    # Retailers: external demand from EOD log.
+    for (nid, sku), grp in eod[eod["node_id"].isin(retailer_ids)].groupby(["node_id", "sku"]):
+        incoming_series[(nid, sku)] = grp.set_index("t")["demand"].sort_index()
+    # Upstream nodes: aggregate child orders.
+    if not orders_df.empty:
+        for (cid, sku), grp in orders_df.groupby(["node_id", "sku"]):
+            parent = child_to_parent.get(cid)
+            if parent is None:
+                continue
+            s = grp.set_index("t")["orders_to_parent"].sort_index()
+            key = (parent, sku)
+            incoming_series[key] = (incoming_series.get(key, pd.Series(dtype=float))
+                                    .add(s, fill_value=0.0))
+
+    def _cv2(series: pd.Series) -> float:
+        if series is None or series.empty:
+            return float("nan")
+        m = series.mean()
+        if m <= 0:
+            return float("nan")
+        return float((series.std() / m) ** 2)
 
     bullwhip_rows = []
     if not orders_df.empty:
         for (nid, sku), grp in orders_df.groupby(["node_id", "sku"]):
-            o = grp["orders_to_parent"]
-            mean_o = o.mean()
-            if mean_o > 0 and sku in demand_cv2 and demand_cv2[sku] > 0:
-                order_cv2 = (o.std() / mean_o) ** 2
-                bwe = order_cv2 / demand_cv2[sku]
+            out = grp.set_index("t")["orders_to_parent"].sort_index()
+            in_series = incoming_series.get((nid, sku))
+            cv2_out = _cv2(out)
+            cv2_in  = _cv2(in_series)
+            if cv2_in and cv2_in > 0 and not pd.isna(cv2_out):
+                bwe = cv2_out / cv2_in
             else:
                 bwe = float("nan")
             bullwhip_rows.append({
-                "node_id": nid, "sku": sku, "bullwhip_ratio": round(bwe, 4)
+                "node_id": nid, "sku": sku,
+                "cv2_in":  round(cv2_in,  6) if not pd.isna(cv2_in)  else float("nan"),
+                "cv2_out": round(cv2_out, 6) if not pd.isna(cv2_out) else float("nan"),
+                "bullwhip_ratio": round(bwe, 4) if not pd.isna(bwe) else float("nan"),
             })
     bullwhip_df = pd.DataFrame(bullwhip_rows) if bullwhip_rows else pd.DataFrame(
-        columns=["node_id", "sku", "bullwhip_ratio"]
+        columns=["node_id", "sku", "cv2_in", "cv2_out", "bullwhip_ratio"]
     )
 
     return {
@@ -790,7 +960,7 @@ def generate_report_summary(
             ]
         lines.append("")
         # Auto observations
-        obs = _auto_observations(r, m if m else {"id": exp_id}, baseline if r is not baseline else None)
+        obs = _auto_observations(r, baseline if r is not baseline else None)
         lines += ["**Key findings:**", ""] + obs + [""]
 
     # Comparison table
@@ -906,18 +1076,130 @@ def generate_report_summary(
 # Individual experiment functions
 # ============================================================
 
-def exp_E0(base_cfg, vpu, out_dir, warmup) -> dict:
+def _compute_newsvendor_levels(cfg: dict, warmup: int,
+                               z: float = 1.64) -> Dict[str, Dict[str, int]]:
+    """Compute base-stock S = μ(L+1) + z·σ·√(L+1) per (node, sku) at runtime.
+
+    Realised retailer demand drives μ, σ. Warehouse demand is the daily sum
+    across its retailer children (correct for the multi-warehouse 1-2-3
+    topology). Supplier nodes are skipped (infinite_supply).
+    """
+    import numpy as np
+
+    # Build a single dummy run to extract realised demand series (post-warmup).
+    net, demand_by_node, T = build_from_config(cfg)
+    sim = Simulator(network=net, demand_by_node=demand_by_node, T=T,
+                    order_processing_delay=1, volume_per_unit=build_volume_map(cfg),
+                    weight_per_unit=build_weight_map(cfg))
+    sim.run()
+    eod = pd.DataFrame([m.__dict__ for m in sim.metrics])
+    eod = eod[(eod["phase"] == "EOD") & (eod["t"] >= warmup)]
+
+    # parent map and lead-time map
+    child_to_parent = {e["to"]: e["from"] for e in cfg["edges"]}
+    lt_map: Dict[tuple, int] = {}
+    for e in cfg["edges"]:
+        lt = e.get("lead_time", {}).get("value")
+        if lt is None:  # try transport_options or default
+            opts = e.get("transport_options") or []
+            lt = opts[0].get("lead_time", 1) if opts else 1
+        lt_map[(e["from"], e["to"])] = int(lt)
+
+    skus = cfg["skus"]
+    retailer_ids = [n["id"] for n in cfg["nodes"] if n["type"] == "retailer"]
+
+    # Retailer per-day demand series.
+    retailer_demand: Dict[tuple, pd.Series] = {}
+    for nid in retailer_ids:
+        for sku in skus:
+            grp = eod[(eod["node_id"] == nid) & (eod["sku"] == sku)]
+            if not grp.empty:
+                retailer_demand[(nid, sku)] = grp.set_index("t")["demand"].sort_index()
+
+    # Warehouse demand = sum of demand from its retailer children.
+    warehouse_demand: Dict[tuple, pd.Series] = {}
+    for parent in {child_to_parent.get(rid) for rid in retailer_ids if child_to_parent.get(rid)}:
+        for sku in skus:
+            agg = pd.Series(dtype=float)
+            for rid in retailer_ids:
+                if child_to_parent.get(rid) == parent:
+                    s = retailer_demand.get((rid, sku))
+                    if s is not None:
+                        agg = agg.add(s, fill_value=0.0)
+            if not agg.empty:
+                warehouse_demand[(parent, sku)] = agg
+
+    levels: Dict[str, Dict[str, int]] = {}
+    for nd in cfg["nodes"]:
+        if nd.get("infinite_supply", False):
+            continue
+        nid = nd["id"]
+        # Find lead time on inbound edge.
+        inbound = [(p, c) for (p, c) in lt_map if c == nid]
+        L = lt_map[inbound[0]] if inbound else 1
+        for sku in skus:
+            if nd["type"] == "retailer":
+                s = retailer_demand.get((nid, sku))
+            else:
+                s = warehouse_demand.get((nid, sku))
+            if s is None or s.empty:
+                continue
+            mu = float(s.mean())
+            sigma = float(s.std(ddof=1)) if len(s) > 1 else 0.0
+            S = int(np.ceil(mu * (L + 1) + z * sigma * np.sqrt(L + 1)))
+            S = max(S, 1)
+            levels.setdefault(nid, {})[sku] = S
+    return levels
+
+
+def _apply_newsvendor_levels(cfg: dict, levels: Dict[str, Dict[str, int]]) -> dict:
+    """Inject newsvendor levels into a cfg copy. Sets initial_inventory = S as well."""
+    cfg = copy.deepcopy(cfg)
+    for nd in cfg["nodes"]:
+        if nd.get("infinite_supply", False):
+            continue
+        nid = nd["id"]
+        if nid not in levels:
+            continue
+        for sku, S in levels[nid].items():
+            pol = nd["policy"].get(sku, {})
+            if pol.get("type") == "base_stock":
+                nd["policy"][sku]["base_stock_level"] = int(S)
+            # Match initial inventory to S so the system starts at steady state.
+            if "initial_inventory" in nd:
+                nd["initial_inventory"][sku] = int(S)
+    return cfg
+
+
+def exp_E0_from_cfg(cfg_e0, vpu, out_dir, warmup, levels) -> dict:
+    """E0 runs with the newsvendor-derived config (computed once in main)."""
     print("\n" + "=" * 60)
-    print("E0 — Analytical baseline (no dispatch threshold)")
+    print("E0 — Analytical baseline (newsvendor at runtime)")
     print("=" * 60)
-    result = run_one(base_cfg, vpu, "E0 — Analytical Baseline", warmup_periods=warmup)
+    print("  Newsvendor base-stock levels:")
+    for nid, by_sku in levels.items():
+        line = f"    {nid:<10}"
+        for sku, S in by_sku.items():
+            line += f"  {sku}={S}"
+        print(line)
+    result = run_one(cfg_e0, vpu, "E0 — Analytical Baseline", warmup_periods=warmup)
+    params = {f"S_{nid}__{sku}": int(S)
+              for nid, by_sku in levels.items() for sku, S in by_sku.items()}
+    params["_note"] = "Newsvendor S = μ(L+1) + z·σ·√(L+1), z=1.64"
     save_experiment(
         result, out_dir / "E0",
         meta=EXPERIMENT_META["E0"],
-        params={"note": "Analytical newsvendor base-stock levels, no dispatch threshold"},
+        params=params,
         baseline=None,
     )
     return result
+
+
+# Backwards-compatible alias if anyone calls exp_E0 directly with base_cfg.
+def exp_E0(base_cfg, vpu, out_dir, warmup) -> dict:
+    levels = _compute_newsvendor_levels(base_cfg, warmup=warmup, z=1.64)
+    cfg_e0 = _apply_newsvendor_levels(base_cfg, levels)
+    return exp_E0_from_cfg(cfg_e0, vpu, out_dir, warmup, levels)
 
 
 def exp_E1a(base_cfg, vpu, out_dir, warmup, baseline) -> dict:
@@ -1010,6 +1292,27 @@ def exp_E3(base_cfg, vpu, out_dir, n_trials, min_fill_rate, warmup, baseline) ->
                      warmup_periods=warmup)
     n_feasible = sum(1 for t in opt.study.trials
                      if t.user_attrs.get("fill_rate", 0) >= min_fill_rate)
+
+    # Save convergence trace for the "100 trials enough?" plot.
+    valid_trials = [t for t in opt.study.trials if t.value is not None]
+    if valid_trials:
+        running_best = []
+        best_so_far = float("inf")
+        for t in sorted(valid_trials, key=lambda x: x.number):
+            if t.value < best_so_far:
+                best_so_far = t.value
+            running_best.append(best_so_far)
+        conv_df = pd.DataFrame({
+            "trial":     [t.number for t in sorted(valid_trials, key=lambda x: x.number)],
+            "cost":      [t.value for t in sorted(valid_trials, key=lambda x: x.number)],
+            "fill_rate": [t.user_attrs.get("fill_rate", float("nan"))
+                          for t in sorted(valid_trials, key=lambda x: x.number)],
+            "best_cost": running_best,
+        })
+        exp_out = out_dir / "E3"
+        exp_out.mkdir(parents=True, exist_ok=True)
+        conv_df.to_csv(exp_out / "convergence.csv", index=False)
+
     save_experiment(
         result, out_dir / "E3",
         meta=EXPERIMENT_META["E3"],
@@ -1025,93 +1328,543 @@ def exp_E3(base_cfg, vpu, out_dir, n_trials, min_fill_rate, warmup, baseline) ->
 
 
 def exp_E4_pareto(base_cfg, vpu, out_dir, n_trials) -> pd.DataFrame:
+    """E4 = NSGA-II true Pareto search + trimmed constraint sweep (sanity check)."""
     print("\n" + "=" * 60)
-    print("E4 — Pareto frontier (cost vs fill rate)")
+    print("E4 — Pareto frontier (NSGA-II + constraint sweep)")
     print("=" * 60)
 
-    targets    = [0.80, 0.85, 0.88, 0.90, 0.92, 0.94, 0.96, 0.98]
     pareto_dir = out_dir / "E4_pareto"
     pareto_dir.mkdir(parents=True, exist_ok=True)
-    pareto_rows = []
 
+    # ── 1. NSGA-II two-objective ──────────────────────────────────────────────
+    from optimizer.pareto import run_nsga2_pareto
+    nsga_trials = max(200, n_trials * 2)
+    print(f"\n  → NSGA-II (primary): {nsga_trials} trials, "
+          f"minimise (cost, -fill_rate)")
+    pr = run_nsga2_pareto(
+        base_cfg=base_cfg, volume_per_unit=vpu,
+        n_trials=nsga_trials, seed=42,
+        population_size=32, verbose=True,
+    )
+    nsga_rows = [{
+        "method":      "nsga2",
+        "fill_rate":   round(r["fill_rate"]  * 100, 4),
+        "total_cost":  round(r["total_cost"], 2),
+        "trial":       r["trial_number"],
+    } for r in pr.frontier]
+    nsga_df = pd.DataFrame(nsga_rows).sort_values("fill_rate").reset_index(drop=True)
+    nsga_df.to_csv(pareto_dir / "nsga2_frontier.csv", index=False)
+    # Save best params per frontier point.
+    for r in pr.frontier:
+        f_pct = int(round(r["fill_rate"] * 100))
+        (pareto_dir / f"nsga2_params_fill_{f_pct:02d}.json").write_text(
+            json.dumps({"fill_rate": r["fill_rate"],
+                        "total_cost": r["total_cost"],
+                        "params": r["params"]}, indent=2)
+        )
+    print(f"    NSGA-II frontier: {len(nsga_df)} non-dominated points")
+
+    # ── 2. Trimmed constraint sweep (sanity check) ────────────────────────────
+    targets = [0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99]
+    print(f"\n  → Constraint sweep (validation): targets {targets}")
+    sweep_rows = []
     for i, target in enumerate(targets):
-        print(f"\n  → Target fill rate: {target*100:.0f}%")
         opt = run_optimizer(
             base_cfg=base_cfg, volume_per_unit=vpu,
             mode="joint", n_trials=n_trials, min_fill_rate=target,
             seed=42 + i * 17, verbose=False,
         )
-
-        params_file = pareto_dir / f"params_{int(target*100):02d}pct.json"
+        params_file = pareto_dir / f"sweep_params_{int(target*100):02d}pct.json"
         params_file.write_text(
             json.dumps({"target": target, "params": opt.best_params}, indent=2)
         )
-
-        # ALWAYS re-evaluate from saved params — never trust study metadata
         saved    = json.loads(params_file.read_text())
         cfg_eval = _apply_params(base_cfg, saved["params"])
         total_cost, fill_rate = evaluate(cfg_eval, vpu)
-
         n_feasible = sum(
             1 for t in opt.study.trials
             if t.user_attrs.get("fill_rate", 0) >= target
         )
-        pareto_rows.append({
+        sweep_rows.append({
+            "method":            "sweep",
             "target_fill_pct":   round(target * 100, 1),
             "achieved_fill_pct": round(fill_rate * 100, 2),
             "total_cost":        round(total_cost, 2),
             "feasible_trials":   n_feasible,
             "best_trial":        opt.best_trial,
         })
-        print(f"    Achieved: {fill_rate*100:.2f}%  Cost: {total_cost:,.2f}  "
-              f"Feasible: {n_feasible}/{n_trials}")
+        print(f"    target {target*100:.0f}%: achieved {fill_rate*100:.2f}%  "
+              f"cost {total_cost:,.2f}  feas {n_feasible}/{n_trials}")
 
-    pareto_df = pd.DataFrame(pareto_rows)
-    pareto_df.to_csv(pareto_dir / "pareto_frontier.csv", index=False)
+    sweep_df = pd.DataFrame(sweep_rows)
+    sweep_df.to_csv(pareto_dir / "sweep_frontier.csv", index=False)
 
-    # Rich pareto markdown
-    pareto_md_lines = [
+    # ── 3. Decision log ───────────────────────────────────────────────────────
+    smooth = False
+    if len(nsga_df) >= 3:
+        # Monotone decreasing in cost as fill rate decreases? Check sorted by fill desc.
+        ordered = nsga_df.sort_values("fill_rate", ascending=False)
+        costs = ordered["total_cost"].values
+        # We expect higher fill → higher cost. So when sorted desc by fill, cost should
+        # generally decrease. Allow small reversals (within 2% of cost range).
+        rng = costs.max() - costs.min() if len(costs) else 0
+        violations = sum(1 for i in range(1, len(costs))
+                         if costs[i] > costs[i-1] + 0.02 * rng)
+        smooth = (violations <= 1)
+
+    decision = (
+        f"# E4 Pareto Decision Log\n\n"
+        f"NSGA-II frontier points: {len(nsga_df)}\n"
+        f"Sweep targets that bind: {sum(1 for r in sweep_rows if r['achieved_fill_pct'] < 99.99)}\n"
+        f"NSGA-II curve smooth + monotone: **{smooth}**\n\n"
+        f"Recommendation: "
+        + ("Use NSGA-II as primary, sweep as validation overlay."
+           if smooth else
+           "NSGA-II curve is irregular; consider falling back to constraint sweep "
+           "as primary in the report, citing the noise.")
+        + "\n"
+    )
+    (pareto_dir / "decision.md").write_text(decision)
+    print("\n" + decision)
+
+    # Backwards-compatible flat CSV for plot_results.py.
+    flat = pd.DataFrame([{
+        "target_fill_pct":   r["target_fill_pct"],
+        "achieved_fill_pct": r["achieved_fill_pct"],
+        "total_cost":        r["total_cost"],
+        "feasible_trials":   r["feasible_trials"],
+        "best_trial":        r["best_trial"],
+    } for r in sweep_rows])
+    flat.to_csv(pareto_dir / "pareto_frontier.csv", index=False)
+
+    md_lines = [
         "# E4 — Pareto Frontier: Cost vs Fill Rate",
         "",
         EXPERIMENT_META["E4"]["purpose"],
         "",
-        "## Results",
+        "## NSGA-II frontier (primary)",
         "",
-        df_to_markdown(pareto_df),
+        df_to_markdown(nsga_df),
         "",
-        "## Methodology",
+        "## Constraint sweep (validation)",
         "",
-        EXPERIMENT_META["E4"]["methodology"],
+        df_to_markdown(sweep_df),
         "",
-        "## Key Observations",
-        "",
-        "- Each row is an independent joint optimization run at a different fill rate target.",
-        "- Compare achieved vs target fill rate to assess optimizer feasibility.",
-        "- The 'knee' of the curve (where marginal cost accelerates) is the recommended "
-          "operating point — diminishing returns beyond that.",
+        decision,
     ]
-    (pareto_dir / "pareto_frontier.md").write_text("\n".join(pareto_md_lines))
+    (pareto_dir / "pareto_frontier.md").write_text("\n".join(md_lines))
+    return flat
 
-    print("\nPareto frontier:")
-    print(df_to_markdown(pareto_df))
 
-    return pareto_df
+def exp_E3_per_sku(base_cfg, vpu, out_dir, n_trials, min_fill_rate, warmup, baseline) -> dict:
+    print("\n" + "=" * 60)
+    print(f"E3_per_sku — Joint opt with per-SKU constraint (every SKU ≥ "
+          f"{min_fill_rate*100:.0f}%)")
+    print("=" * 60)
+    opt = run_optimizer(
+        base_cfg=base_cfg, volume_per_unit=vpu,
+        mode="joint", n_trials=n_trials, min_fill_rate=min_fill_rate,
+        seed=42, verbose=True, per_sku_constraint=True,
+    )
+    cfg = _apply_params(base_cfg, opt.best_params)
+    result = run_one(cfg, vpu,
+                     f"E3_per_sku — Joint Opt (per-SKU ≥ {min_fill_rate*100:.0f}%)",
+                     warmup_periods=warmup)
+    n_feasible = sum(1 for t in opt.study.trials
+                     if t.user_attrs.get("min_sku_fill", 0) >= min_fill_rate)
+    save_experiment(
+        result, out_dir / "E3_per_sku",
+        meta=EXPERIMENT_META["E3_per_sku"],
+        params=opt.best_params,
+        baseline=baseline,
+        opt_info={
+            "mode": "joint", "n_trials": n_trials,
+            "n_feasible": n_feasible, "best_trial": opt.best_trial,
+            "min_fill_rate": f"{min_fill_rate*100:.0f}% per-SKU",
+        },
+    )
+    return result
+
+
+def run_multiseed_validation(base_cfg: dict, vpu: dict, params_path: Path,
+                             out_dir: Path, n_seeds: int, warmup: int) -> None:
+    """Re-run the saved params under N seeds, report mean ± std."""
+    print("\n" + "=" * 60)
+    print(f"Multi-seed validation: {n_seeds} seeds for E3 best params")
+    print("=" * 60)
+    saved = json.loads(params_path.read_text())
+    # `params` may be a flat dict (S_*, D_*) or a wrapper {"params": {...}}.
+    params = saved.get("params") if isinstance(saved, dict) and "params" in saved else saved
+    rows = []
+    for i in range(n_seeds):
+        cfg = _apply_params(base_cfg, params)
+        cfg["seed"] = 42 + i
+        # Override every demand generator's seed too.
+        for d in cfg.get("demand", []):
+            g = d.get("generator", {})
+            if g.get("type") in ("poisson",):
+                g["seed"] = 42 + i
+        result = run_one(cfg, vpu, f"E3-seed{42+i}", warmup_periods=warmup)
+        rows.append({
+            "seed":       42 + i,
+            "total_cost": round(result["total_cost"], 2),
+            "fill_rate":  round(result["fill_rate"], 4),
+        })
+        print(f"  seed={42+i}: cost {result['total_cost']:,.2f}, "
+              f"fill {result['fill_rate']*100:.2f}%")
+    df = pd.DataFrame(rows)
+    df.to_csv(out_dir / "multiseed_validation.csv", index=False)
+
+    summary = pd.DataFrame([{
+        "n_seeds":       n_seeds,
+        "cost_mean":     round(df["total_cost"].mean(), 2),
+        "cost_std":      round(df["total_cost"].std(ddof=1), 2),
+        "fill_mean":     round(df["fill_rate"].mean(), 4),
+        "fill_std":      round(df["fill_rate"].std(ddof=1), 4),
+    }])
+    summary.to_csv(out_dir / "multiseed_summary.csv", index=False)
+    print("\n  Multi-seed summary:")
+    print("  " + df_to_markdown(summary).replace("\n", "\n  "))
+
+
+# ============================================================
+# Phase B experiments
+# ============================================================
+
+def _inject_disruption(cfg: dict, node_id: str, start: int, duration: int) -> dict:
+    cfg = copy.deepcopy(cfg)
+    cfg.setdefault("disruptions", []).append(
+        {"node_id": node_id, "start": int(start), "end": int(start + duration)}
+    )
+    return cfg
+
+
+def exp_E5_disruption(base_cfg, vpu, out_dir, warmup,
+                      e0_params_path: Path, e3_params_path: Path) -> List[dict]:
+    """E5: disruption robustness — same shock applied to E0 params and E3 params."""
+    print("\n" + "=" * 60)
+    print("E5 — Disruption robustness (W1 outage, 14 days)")
+    print("=" * 60)
+    T = int(base_cfg["time_horizon"])
+    shock_start    = warmup + int(0.6 * (T - warmup))
+    shock_duration = 14
+    print(f"  W1 disrupted in [{shock_start}, {shock_start+shock_duration}) "
+          f"of {T}-day horizon")
+
+    out_dir_e5 = out_dir / "E5"
+    out_dir_e5.mkdir(parents=True, exist_ok=True)
+
+    results = []
+    for label, params_path, scenario_id in [
+        ("E5_E0params", e0_params_path, "E0"),
+        ("E5_E3params", e3_params_path, "E3"),
+    ]:
+        if not params_path.exists():
+            print(f"  ⚠  {scenario_id} params not found at {params_path}; skipping")
+            continue
+        saved = json.loads(params_path.read_text())
+        params = saved.get("params") if "params" in saved else saved
+        # Drop the _note key if present.
+        params = {k: v for k, v in params.items() if not k.startswith("_")}
+        cfg = _apply_params(base_cfg, params)
+        cfg = _inject_disruption(cfg, "W1", shock_start, shock_duration)
+        result = run_one(cfg, vpu, f"E5 — {scenario_id} under W1 outage",
+                         warmup_periods=warmup)
+        sub_dir = out_dir / label
+        save_experiment(
+            result, sub_dir,
+            meta={**EXPERIMENT_META["E5"], "id": label,
+                  "title": f"Disruption — {scenario_id} params"},
+            params={**params, "disruption":
+                    {"node": "W1", "start": shock_start, "end": shock_start+shock_duration}},
+            baseline=None,
+        )
+        results.append(result)
+    return results
+
+
+def exp_E6_policies(base_cfg, vpu, out_dir, n_trials, min_fill_rate, warmup) -> List[dict]:
+    """E6: optimize each of base_stock / ss / periodic_review / echelon_stock.
+
+    Each policy jointly optimises its inventory parameters AND all dispatch
+    thresholds, giving every policy equal access to transport consolidation.
+    """
+    print("\n" + "=" * 60)
+    print("E6 — Policy comparison (Core 4, joint inventory+transport)")
+    print("=" * 60)
+    from optimizer.policy_search import run_policy_optimizer
+    from optimizer.optimize import _extract_dispatch_thresholds
+    print("  Dispatch routes:", list(_extract_dispatch_thresholds(base_cfg).keys()))
+
+    results = []
+    for policy_type in ["base_stock", "ss", "periodic_review", "echelon_stock"]:
+        print(f"\n  → Policy: {policy_type}")
+        try:
+            cfg_opt, params, summary = run_policy_optimizer(
+                base_cfg=base_cfg, vpu=vpu, policy_type=policy_type,
+                n_trials=n_trials, min_fill_rate=min_fill_rate,
+                seed=42, verbose=False, mode="joint",
+            )
+        except Exception as e:
+            print(f"    ⚠  failed: {e}")
+            continue
+        result = run_one(cfg_opt, vpu, f"E6 — {policy_type}",
+                         warmup_periods=warmup)
+        save_experiment(
+            result, out_dir / f"E6_{policy_type}",
+            meta={**EXPERIMENT_META["E6"], "id": f"E6_{policy_type}",
+                  "title": f"Policy = {policy_type}"},
+            params=params,
+            baseline=None,
+            opt_info=summary,
+        )
+        results.append(result)
+    return results
+
+
+def exp_E7_forecast(base_cfg, vpu, out_dir, warmup, e3_params_path: Path) -> List[dict]:
+    """E7: forecast-error sensitivity sweep."""
+    print("\n" + "=" * 60)
+    print("E7 — Demand forecasting sensitivity")
+    print("=" * 60)
+    if not e3_params_path.exists():
+        print(f"  ⚠  E3 params not found at {e3_params_path}; skipping E7")
+        return []
+    saved = json.loads(e3_params_path.read_text())
+    params = saved.get("params") if "params" in saved else saved
+    params = {k: v for k, v in params.items() if not k.startswith("_")}
+
+    sigmas = [0.0, 0.05, 0.10, 0.20, 0.30]
+    results = []
+    rows = []
+    for sigma in sigmas:
+        cfg = _apply_params(base_cfg, params)
+        cfg["forecast_noise_sigma"] = sigma
+        # The simulator currently doesn't consume forecast_noise_sigma — we wrap
+        # the demand generator so noisy-forecast errors translate to inventory
+        # via stock-level shifts (proxy via per-SKU base-stock perturbation).
+        if sigma > 0:
+            import numpy as np
+            rng = np.random.default_rng(42)
+            for nd in cfg["nodes"]:
+                if nd.get("infinite_supply"):
+                    continue
+                for sku, pol in nd.get("policy", {}).items():
+                    if pol.get("type") == "base_stock":
+                        s = pol["base_stock_level"]
+                        # Forecast error ⇒ S underestimated by ε → on-hand low.
+                        eps = float(rng.normal(0.0, sigma))
+                        pol["base_stock_level"] = max(1, int(round(s * (1.0 - eps))))
+        result = run_one(cfg, vpu, f"E7 — σ_f = {sigma*100:.0f}%",
+                         warmup_periods=warmup)
+        save_experiment(
+            result, out_dir / f"E7_sigma_{int(sigma*100):02d}",
+            meta={**EXPERIMENT_META["E7"], "id": f"E7_sigma_{int(sigma*100):02d}",
+                  "title": f"Forecast σ={sigma*100:.0f}%"},
+            params={**params, "forecast_sigma": sigma},
+            baseline=None,
+        )
+        rows.append({
+            "sigma_pct":  int(sigma * 100),
+            "total_cost": round(result["total_cost"], 2),
+            "fill_rate":  round(result["fill_rate_pct"], 2),
+        })
+        results.append(result)
+    pd.DataFrame(rows).to_csv(out_dir / "E7_forecast_sweep.csv", index=False)
+    print("\n  E7 sweep summary:")
+    print(df_to_markdown(pd.DataFrame(rows)))
+    return results
+
+
+def exp_E8_bullwhip_aware(base_cfg, vpu, out_dir, n_trials, min_fill_rate,
+                          warmup) -> List[dict]:
+    """E8: joint optimization with bullwhip in the objective."""
+    print("\n" + "=" * 60)
+    print("E8 — Bullwhip-aware joint optimization")
+    print("=" * 60)
+    from optimizer.bullwhip_aware import run_bullwhip_aware_optimizer
+
+    lambdas = [0.0, 1e3, 1e4, 1e5, 1e6]
+    results = []
+    rows = []
+    for lam in lambdas:
+        print(f"\n  → λ = {lam:.0e}")
+        params, summary = run_bullwhip_aware_optimizer(
+            base_cfg=base_cfg, vpu=vpu, lam=lam,
+            n_trials=n_trials, min_fill_rate=min_fill_rate, seed=42,
+        )
+        cfg = _apply_params(base_cfg, params)
+        result = run_one(cfg, vpu, f"E8 — λ={lam:.0e}", warmup_periods=warmup)
+        save_experiment(
+            result, out_dir / f"E8_lambda_{int(lam):010d}",
+            meta={**EXPERIMENT_META["E8"], "id": f"E8_lambda_{lam:.0e}",
+                  "title": f"Bullwhip-aware (λ={lam:.0e})"},
+            params={**params, "lambda": lam},
+            baseline=None,
+            opt_info=summary,
+        )
+        # Aggregate bullwhip across nodes/SKUs (mean of finite ratios).
+        bw = result["bullwhip_df"]
+        bw_finite = bw["bullwhip_ratio"].dropna() if not bw.empty else pd.Series(dtype=float)
+        rows.append({
+            "lambda":     lam,
+            "total_cost": round(result["total_cost"], 2),
+            "fill_rate":  round(result["fill_rate_pct"], 2),
+            "mean_bullwhip": round(float(bw_finite.mean()), 4) if not bw_finite.empty else float("nan"),
+        })
+        results.append(result)
+    pd.DataFrame(rows).to_csv(out_dir / "E8_lambda_sweep.csv", index=False)
+    print("\n  E8 sweep summary:")
+    print(df_to_markdown(pd.DataFrame(rows)))
+    return results
+
+
+# ============================================================
+# E9 — Stochastic demand robustness
+# ============================================================
+
+def _compute_poisson_lambdas(base_cfg: dict) -> Dict[str, Dict[str, float]]:
+    """Compute mean daily demand per (node, sku) from CSV demand entries."""
+    lambdas: Dict[str, Dict[str, float]] = {}
+    T = int(base_cfg["time_horizon"])
+    for d in base_cfg.get("demand", []):
+        node = d["node"]
+        sku = d["sku"]
+        g = d["generator"]
+        if g["type"] != "csv":
+            continue
+        if "path" in g:
+            path = (ROOT / g["path"]).resolve()
+        else:
+            raise ValueError(f"E9: _compute_poisson_lambdas only supports 'path' demand, got: {g}")
+        series = _read_csv_series(path, g.get("date_col", "date"), g.get("qty_col", "quantity"))
+        start = int(g.get("start_index", 0))
+        window = series[start: start + T]
+        lam = float(pd.Series(window).mean()) if window else 1.0
+        lam = max(lam, 0.1)
+        lambdas.setdefault(node, {})[sku] = lam
+    return lambdas
+
+
+def _make_poisson_cfg(base_cfg: dict, lambdas: Dict[str, Dict[str, float]], seed: int) -> dict:
+    """Clone config with all CSV demand generators replaced by Poisson(λ)."""
+    cfg = copy.deepcopy(base_cfg)
+    for d in cfg.get("demand", []):
+        node = d["node"]
+        sku = d["sku"]
+        lam = lambdas.get(node, {}).get(sku, 1.0)
+        d["generator"] = {"type": "poisson", "lam": lam, "seed": seed}
+    return cfg
+
+
+def exp_E9(base_cfg, vpu, out_dir, e3_params_path: Path, warmup, n_seeds: int = 10) -> dict:
+    """E9: evaluate E3 params under Poisson demand (robustness test, not re-optimisation)."""
+    print("\n" + "=" * 60)
+    print("E9 — Stochastic demand robustness (transferability of E3 params)")
+    print("=" * 60)
+
+    if not e3_params_path.exists():
+        print(f"  ⚠  E3 params not found at {e3_params_path}; skipping E9")
+        return {}
+
+    saved = json.loads(e3_params_path.read_text())
+    e3_params = saved.get("params") if "params" in saved else saved
+    e3_params = {k: v for k, v in e3_params.items() if not k.startswith("_")}
+
+    lambdas = _compute_poisson_lambdas(base_cfg)
+    print(f"  Poisson λ per (node, sku):")
+    for node, skus in lambdas.items():
+        for sku, lam in skus.items():
+            print(f"    {node} / {sku}: λ={lam:.2f}")
+
+    rows = []
+    for seed in range(n_seeds):
+        cfg_stoch = _make_poisson_cfg(base_cfg, lambdas, seed)
+        cfg_applied = _apply_params(cfg_stoch, e3_params)
+        r = run_one(cfg_applied, vpu, f"E9 — seed {seed}", warmup_periods=warmup)
+        rows.append({
+            "seed":       seed,
+            "total_cost": round(r["total_cost"], 2),
+            "fill_rate":  round(r["fill_rate_pct"], 4),
+        })
+        print(f"    seed {seed:2d}: cost=${r['total_cost']:,.0f}  fill={r['fill_rate_pct']:.2f}%")
+
+    df = pd.DataFrame(rows)
+    mean_cost = df["total_cost"].mean()
+    std_cost  = df["total_cost"].std()
+    mean_fill = df["fill_rate"].mean()
+    std_fill  = df["fill_rate"].std()
+
+    print(f"\n  Summary ({n_seeds} seeds):")
+    print(f"    Cost : ${mean_cost:,.0f} ± ${std_cost:,.0f}")
+    print(f"    Fill : {mean_fill:.2f}% ± {std_fill:.2f}%")
+
+    exp_out = out_dir / "E9"
+    exp_out.mkdir(parents=True, exist_ok=True)
+    df.to_csv(exp_out / "seed_results.csv", index=False)
+    summary_dict = {
+        "mean_cost": round(mean_cost, 2), "std_cost":  round(std_cost, 2),
+        "mean_fill": round(mean_fill, 4), "std_fill":  round(std_fill, 4),
+        "n_seeds":   n_seeds,
+    }
+    (exp_out / "summary.json").write_text(json.dumps(summary_dict, indent=2))
+
+    # Return a result-shaped dict so it integrates with the summary table.
+    result = {
+        "label":         "E9 — Stochastic Robustness",
+        "total_cost":    mean_cost,
+        "fill_rate_pct": mean_fill,
+        "std_cost":      std_cost,
+        "std_fill":      std_fill,
+        "meta":          EXPERIMENT_META["E9"],
+    }
+    return result
 
 
 # ============================================================
 # Main
 # ============================================================
 
+def _print_topology(cfg: dict) -> None:
+    """Print a topology sanity line so '1N3 = 1-1-3' misreadings are caught."""
+    by_type: Dict[str, List[str]] = {}
+    for nd in cfg["nodes"]:
+        by_type.setdefault(nd["type"], []).append(nd["id"])
+    sup = by_type.get("supplier", [])
+    wh  = by_type.get("warehouse", [])
+    rt  = by_type.get("retailer", [])
+    print(f"Topology    : {len(sup)} supplier, {len(wh)} warehouse"
+          f"{'s' if len(wh) != 1 else ''}, {len(rt)} retailer"
+          f"{'s' if len(rt) != 1 else ''}  "
+          f"[{','.join(sup)} → {','.join(wh)} → {','.join(rt)}]")
+
+
+def _resolve_warmup(cli_warmup: Optional[int], exp_id: str, T: int) -> int:
+    """CLI value wins; otherwise use EXPERIMENT_META[exp_id].recommended_warmup."""
+    if cli_warmup is not None:
+        return int(cli_warmup)
+    rec = EXPERIMENT_META.get(exp_id, {}).get("recommended_warmup", 0)
+    if rec == 0 and T >= 200:
+        print(f"  ⚠  {exp_id}: warmup=0 with T={T} — KPIs include transient days")
+    return int(rec)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Run DDP experiments and save all results.")
     ap.add_argument("--config",        required=True)
     ap.add_argument("--experiments",   nargs="+",
                     default=["E0", "E1a", "E1b", "E2", "E3", "E4"],
-                    choices=["E0", "E1a", "E1b", "E2", "E3", "E4"])
+                    choices=["E0", "E1a", "E1b", "E2", "E3", "E3_per_sku", "E4",
+                             "E5", "E6", "E7", "E8", "E9"])
     ap.add_argument("--trials",        type=int,   default=100)
     ap.add_argument("--min_fill_rate", type=float, default=0.92)
-    ap.add_argument("--warmup",        type=int,   default=0,
-                    help="Warm-up days excluded from KPI aggregation (default: 0)")
+    ap.add_argument("--warmup",        type=int,   default=None,
+                    help="Override warm-up days. If omitted, each experiment uses "
+                         "its EXPERIMENT_META.recommended_warmup (default: 30 for "
+                         "M5-based runs).")
+    ap.add_argument("--validate_seeds", type=int, default=0,
+                    help="If > 0, re-run E3 best params under N seeds and report "
+                         "mean ± std of cost / fill rate.")
     ap.add_argument("--outdir",        default=str(ROOT / "outputs"))
     args = ap.parse_args()
 
@@ -1122,15 +1875,21 @@ def main():
     with open(args.config) as f:
         base_cfg = json.load(f)
     vpu = build_volume_map(base_cfg)
+    T   = int(base_cfg["time_horizon"])
 
     print("=" * 60)
     print("DDP Experiment Runner")
     print("=" * 60)
     print(f"Config      : {args.config}")
+    _print_topology(base_cfg)
+    print(f"Time horizon: {T} days")
     print(f"Experiments : {args.experiments}")
     print(f"Trials      : {args.trials}")
     print(f"Fill target : {args.min_fill_rate*100:.0f}%")
-    print(f"Warm-up     : {args.warmup} days")
+    if args.warmup is None:
+        print(f"Warm-up     : per-experiment (see EXPERIMENT_META)")
+    else:
+        print(f"Warm-up     : {args.warmup} days (CLI override)")
     print(f"Output      : {out_dir}")
 
     results    = []
@@ -1138,28 +1897,86 @@ def main():
     start_time = time.time()
     baseline   = None   # E0 result; passed to subsequent experiments
 
+    # Compute analytical baseline config once and reuse for all downstream
+    # experiments — this guarantees E1*/E2/E3 start from the newsvendor levels,
+    # not whatever is hardcoded in the JSON.
+    e0_warmup = _resolve_warmup(args.warmup, "E0", T)
+    print("\n[setup] Computing newsvendor base-stock levels at runtime "
+          f"(warmup={e0_warmup}) ...")
+    nv_levels = _compute_newsvendor_levels(base_cfg, warmup=e0_warmup, z=1.64)
+    cfg_e0 = _apply_newsvendor_levels(base_cfg, nv_levels)
+
     if "E0" in args.experiments:
-        r = exp_E0(base_cfg, vpu, out_dir, args.warmup)
+        r = exp_E0_from_cfg(cfg_e0, vpu, out_dir, e0_warmup, nv_levels)
         results.append(r)
         baseline = r
 
     if "E1a" in args.experiments:
-        results.append(exp_E1a(base_cfg, vpu, out_dir, args.warmup, baseline))
+        w = _resolve_warmup(args.warmup, "E1a", T)
+        results.append(exp_E1a(cfg_e0, vpu, out_dir, w, baseline))
 
     if "E1b" in args.experiments:
-        results.append(exp_E1b(base_cfg, vpu, out_dir, args.trials, args.warmup, baseline))
+        w = _resolve_warmup(args.warmup, "E1b", T)
+        results.append(exp_E1b(cfg_e0, vpu, out_dir, args.trials, w, baseline))
 
     if "E2" in args.experiments:
-        results.append(exp_E2(base_cfg, vpu, out_dir, args.trials,
-                              args.min_fill_rate, args.warmup, baseline))
+        w = _resolve_warmup(args.warmup, "E2", T)
+        results.append(exp_E2(cfg_e0, vpu, out_dir, args.trials,
+                              args.min_fill_rate, w, baseline))
 
     if "E3" in args.experiments:
-        results.append(exp_E3(base_cfg, vpu, out_dir, args.trials,
-                              args.min_fill_rate, args.warmup, baseline))
+        w = _resolve_warmup(args.warmup, "E3", T)
+        r3 = exp_E3(cfg_e0, vpu, out_dir, args.trials,
+                    args.min_fill_rate, w, baseline)
+        results.append(r3)
+
+    if "E3_per_sku" in args.experiments:
+        w = _resolve_warmup(args.warmup, "E3_per_sku", T)
+        results.append(exp_E3_per_sku(cfg_e0, vpu, out_dir, args.trials,
+                                      args.min_fill_rate, w, baseline))
 
     if "E4" in args.experiments:
-        pareto_df = exp_E4_pareto(base_cfg, vpu, out_dir,
+        pareto_df = exp_E4_pareto(cfg_e0, vpu, out_dir,
                                   n_trials=max(50, args.trials // 2))
+
+    if "E5" in args.experiments:
+        w = _resolve_warmup(args.warmup, "E5", T)
+        e0_params_path = out_dir / "E0" / "params.json"
+        e3_params_path = out_dir / "E3" / "params.json"
+        results.extend(exp_E5_disruption(base_cfg, vpu, out_dir, w,
+                                         e0_params_path, e3_params_path))
+
+    if "E6" in args.experiments:
+        w = _resolve_warmup(args.warmup, "E6", T)
+        results.extend(exp_E6_policies(base_cfg, vpu, out_dir, args.trials,
+                                       args.min_fill_rate, w))
+
+    if "E7" in args.experiments:
+        w = _resolve_warmup(args.warmup, "E7", T)
+        e3_params_path = out_dir / "E3" / "params.json"
+        results.extend(exp_E7_forecast(base_cfg, vpu, out_dir, w, e3_params_path))
+
+    if "E8" in args.experiments:
+        w = _resolve_warmup(args.warmup, "E8", T)
+        results.extend(exp_E8_bullwhip_aware(base_cfg, vpu, out_dir,
+                                             args.trials, args.min_fill_rate, w))
+
+    if "E9" in args.experiments:
+        w = _resolve_warmup(args.warmup, "E9", T)
+        e3_params_path = out_dir / "E3" / "params.json"
+        exp_E9(base_cfg, vpu, out_dir, e3_params_path, w)
+        # E9 saves its own summary.json / seed_results.csv; not added to the
+        # main summary table since it returns mean±std, not a single sim result.
+
+    # ── Multi-seed validation (optional) ──────────────────────────────────────
+    if args.validate_seeds > 0:
+        e3_params_path = out_dir / "E3" / "params.json"
+        if e3_params_path.exists():
+            run_multiseed_validation(base_cfg, vpu, e3_params_path, out_dir,
+                                     n_seeds=args.validate_seeds,
+                                     warmup=_resolve_warmup(args.warmup, "E3", T))
+        else:
+            print("\n  ⚠  --validate_seeds requested but E3 was not run; skipping.")
 
     # ── Summary table ─────────────────────────────────────────────────────────
     if results:
@@ -1182,7 +1999,7 @@ def main():
         out_dir=out_dir,
         config_path=args.config,
         elapsed_min=elapsed / 60,
-        warmup=args.warmup,
+        warmup=args.warmup if args.warmup is not None else "per-experiment",
         n_trials=args.trials,
         min_fill_rate=args.min_fill_rate,
     )

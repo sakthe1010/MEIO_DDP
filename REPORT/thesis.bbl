@@ -1,35 +1,30 @@
-\begin{thebibliography}{14}
+\begin{thebibliography}{22}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{{\tt #1}}\fi
 \expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
 
-\bibitem[{Akiba {\em et~al.\/}(2019)Akiba, Sano, Yanase, Ohta, and
-  Koyama}]{AkibaEtAl2019}
-{\bf Akiba, T.}, {\bf S.~Sano}, {\bf T.~Yanase}, {\bf T.~Ohta}, and {\bf
-  M.~Koyama}, Optuna: A next-generation hyperparameter optimization framework.
-\newblock {\em In\/} {\em Proceedings of the 25th ACM SIGKDD International
-  Conference on Knowledge Discovery \& Data Mining\/}. 2019.
+\bibitem[{Akiba {\em et~al.\/}(2019)Akiba, Sano, Yanase, Ohta, and Koyama}]{AkibaEtAl2019}
+{\bf Akiba, T.}, {\bf S.~Sano}, {\bf T.~Yanase}, {\bf T.~Ohta}, and {\bf M.~Koyama}, Optuna: A next-generation hyperparameter optimization framework.
+\newblock {\em In\/} {\em Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery \& Data Mining\/}. 2019.
 
-\bibitem[{Arrow {\em et~al.\/}(1951)Arrow, Harris, and
-  Marschak}]{ArrowHarrisMarschak1951}
+\bibitem[{Arrow {\em et~al.\/}(1951)Arrow, Harris, and Marschak}]{ArrowHarrisMarschak1951}
 {\bf Arrow, K.~J.}, {\bf T.~Harris}, and {\bf J.~Marschak} (1951).
 \newblock Optimal inventory policy.
 \newblock {\em Econometrica\/}, {\bf 19}(3), 250--272.
 
-\bibitem[{Bergstra {\em et~al.\/}(2011)Bergstra, Bardenet, Bengio, and
-  K{\'e}gl}]{BergstraEtAl2011}
-{\bf Bergstra, J.}, {\bf R.~Bardenet}, {\bf Y.~Bengio}, and {\bf B.~K{\'e}gl},
-  Algorithms for hyper-parameter optimization.
-\newblock {\em In\/} {\em Advances in Neural Information Processing Systems\/},
-  volume~24. 2011.
+\bibitem[{Bergstra {\em et~al.\/}(2011)Bergstra, Bardenet, Bengio, and K{\'e}gl}]{BergstraEtAl2011}
+{\bf Bergstra, J.}, {\bf R.~Bardenet}, {\bf Y.~Bengio}, and {\bf B.~K{\'e}gl}, Algorithms for hyper-parameter optimization.
+\newblock {\em In\/} {\em Advances in Neural Information Processing Systems\/}, volume~24. 2011.
 
-\bibitem[{Chen {\em et~al.\/}(2000)Chen, Drezner, Ryan, and
-  Simchi-Levi}]{ChenEtAl2000}
-{\bf Chen, F.}, {\bf Z.~Drezner}, {\bf J.~K. Ryan}, and {\bf D.~Simchi-Levi}
-  (2000).
-\newblock Quantifying the bullwhip effect in a simple supply chain: The impact
-  of forecasting, lead times, and information.
+\bibitem[{Boute {\em et~al.\/}(2022)Boute, Gijsbrechts, Van~Jaarsveld, and Vanvuchelen}]{BouteEtAl2022}
+{\bf Boute, R.~N.}, {\bf J.~Gijsbrechts}, {\bf W.~Van~Jaarsveld}, and {\bf N.~Vanvuchelen} (2022).
+\newblock Deep reinforcement learning for inventory control: A roadmap.
+\newblock {\em European Journal of Operational Research\/}, {\bf 298}(2), 401--412.
+
+\bibitem[{Chen {\em et~al.\/}(2000)Chen, Drezner, Ryan, and Simchi-Levi}]{ChenEtAl2000}
+{\bf Chen, F.}, {\bf Z.~Drezner}, {\bf J.~K. Ryan}, and {\bf D.~Simchi-Levi} (2000).
+\newblock Quantifying the bullwhip effect in a simple supply chain: The impact of forecasting, lead times, and information.
 \newblock {\em Management Science\/}, {\bf 46}(3), 436--443.
 
 \bibitem[{Clark and Scarf(1960)}]{ClarkScarf1960}
@@ -37,56 +32,79 @@
 \newblock Optimal policies for a multi-echelon inventory problem.
 \newblock {\em Management Science\/}, {\bf 6}(4), 475--490.
 
+\bibitem[{Deb {\em et~al.\/}(2002)Deb, Pratap, Agarwal, and Meyarivan}]{DebEtAl2002}
+{\bf Deb, K.}, {\bf A.~Pratap}, {\bf S.~Agarwal}, and {\bf T.~Meyarivan} (2002).
+\newblock A fast and elitist multiobjective genetic algorithm: {NSGA-II}.
+\newblock {\em IEEE Transactions on Evolutionary Computation\/}, {\bf 6}(2), 182--197.
+
 \bibitem[{Fu {\em et~al.\/}(2005)Fu, Glover, and April}]{FuEtAl2005}
-{\bf Fu, M.~C.}, {\bf F.~W. Glover}, and {\bf J.~April}, Simulation
-  optimization: A review, new developments, and applications.
-\newblock {\em In\/} {\em Proceedings of the 2005 Winter Simulation
-  Conference\/}. 2005.
+{\bf Fu, M.~C.}, {\bf F.~W. Glover}, and {\bf J.~April}, Simulation optimization: A review, new developments, and applications.
+\newblock {\em In\/} {\em Proceedings of the 2005 Winter Simulation Conference\/}. 2005.
+
+\bibitem[{Gijsbrechts {\em et~al.\/}(2022)Gijsbrechts, Boute, Van~Mieghem, and Zhang}]{GijsbrechtsEtAl2022}
+{\bf Gijsbrechts, J.}, {\bf R.~N. Boute}, {\bf J.~A. Van~Mieghem}, and {\bf D.~J. Zhang} (2022).
+\newblock Can deep reinforcement learning improve inventory management? performance on lost-sales, dual-sourcing, and multi-echelon problems.
+\newblock {\em Manufacturing \& Service Operations Management\/}, {\bf 24}(3), 1261--1279.
+
+\bibitem[{Goldberg(1989)}]{Goldberg1989}
+{\bf Goldberg, D.~E.}, {\em Genetic Algorithms in Search, Optimization, and Machine Learning\/}.
+\newblock Addison-Wesley, 1989.
 
 \bibitem[{Harris(1913)}]{Harris1913}
 {\bf Harris, F.~W.} (1913).
 \newblock How many parts to make at once.
 \newblock {\em Factory, The Magazine of Management\/}, {\bf 10}(2), 135--136.
 
-\bibitem[{Jagerman {\em et~al.\/}(1990)Jagerman, Jewkes, and
-  Mehrez}]{JagermanEtAl1990}
+\bibitem[{Hubbs {\em et~al.\/}(2020)Hubbs, Perez, Sarwar, Sahinidis, Grossmann, and Wassick}]{HubbsEtAl2020}
+{\bf Hubbs, C.~D.}, {\bf H.~D. Perez}, {\bf O.~Sarwar}, {\bf N.~V. Sahinidis}, {\bf I.~E. Grossmann}, and {\bf J.~M. Wassick} (2020).
+\newblock {OR-Gym}: A reinforcement learning library for operations research problems.
+\newblock {\em arXiv preprint arXiv:2008.06319\/}.
+
+\bibitem[{Jagerman {\em et~al.\/}(1990)Jagerman, Jewkes, and Mehrez}]{JagermanEtAl1990}
 {\bf Jagerman, D.~L.}, {\bf E.~M. Jewkes}, and {\bf A.~Mehrez} (1990).
-\newblock Policies for reducing inventory costs in a stochastic just-in-time
-  environment.
-\newblock {\em European Journal of Operational Research\/}, {\bf 45}(2),
-  196--208.
+\newblock Policies for reducing inventory costs in a stochastic just-in-time environment.
+\newblock {\em European Journal of Operational Research\/}, {\bf 45}(2), 196--208.
 
 \bibitem[{Lee {\em et~al.\/}(1997)Lee, Padmanabhan, and Whang}]{LeeEtAl1997}
 {\bf Lee, H.~L.}, {\bf V.~Padmanabhan}, and {\bf S.~Whang} (1997).
 \newblock Information distortion in a supply chain: The bullwhip effect.
 \newblock {\em Management Science\/}, {\bf 43}(4), 546--558.
 
-\bibitem[{Makridakis {\em et~al.\/}(2022)Makridakis, Spiliotis, and
-  Assimakopoulos}]{MakridakisEtAl2020}
+\bibitem[{Makridakis {\em et~al.\/}(2022)Makridakis, Spiliotis, and Assimakopoulos}]{MakridakisEtAl2020}
 {\bf Makridakis, S.}, {\bf E.~Spiliotis}, and {\bf V.~Assimakopoulos} (2022).
 \newblock The {M5} accuracy competition: Results, findings, and conclusions.
-\newblock {\em International Journal of Forecasting\/}, {\bf 38}(4),
-  1346--1364.
+\newblock {\em International Journal of Forecasting\/}, {\bf 38}(4), 1346--1364.
 
 \bibitem[{Pasupathy and Poloczek(2022)}]{SimOptLib2022}
 {\bf Pasupathy, R.} and {\bf M.~Poloczek} (2022).
 \newblock {SimOpt}: A testbed for simulation-optimization experiments.
 \newblock \url{https://simopt.readthedocs.io}.
 
+\bibitem[{Perez {\em et~al.\/}(2021)Perez, Hubbs, Li, and Grossmann}]{PerezEtAl2021}
+{\bf Perez, H.~D.}, {\bf C.~D. Hubbs}, {\bf C.~Li}, and {\bf I.~E. Grossmann}, Algorithmic approaches to inventory management optimization.
+\newblock {\em In\/} {\em Processes\/}, volume~9. 2021.
+
 \bibitem[{Roundy(1985)}]{Roundy1985}
 {\bf Roundy, R.} (1985).
-\newblock 98\%-effective integer-ratio lot-sizing for one-warehouse
-  multi-retailer systems.
+\newblock 98\%-effective integer-ratio lot-sizing for one-warehouse multi-retailer systems.
 \newblock {\em Management Science\/}, {\bf 31}(11), 1416--1430.
 
 \bibitem[{Scarf(1960)}]{ScaRf1960MathOptInventory}
-{\bf Scarf, H.} (1960).
-\newblock The optimality of $(s,s)$ policies in the dynamic inventory problem.
-\newblock {\em Mathematical Methods in the Social Sciences\/}, 196--202.
+{\bf Scarf, H.}, The optimality of $(s,s)$ policies in the dynamic inventory problem.
+\newblock {\em In\/} {\bf K.~J. Arrow}, {\bf S.~Karlin}, and {\bf P.~Suppes} (eds.), {\em Mathematical Methods in the Social Sciences, 1959\/}. Stanford University Press, 1960, 196--202.
+
+\bibitem[{Shahriari {\em et~al.\/}(2016)Shahriari, Swersky, Wang, Adams, and de~Freitas}]{ShahriariEtAl2016}
+{\bf Shahriari, B.}, {\bf K.~Swersky}, {\bf Z.~Wang}, {\bf R.~P. Adams}, and {\bf N.~de~Freitas} (2016).
+\newblock Taking the human out of the loop: A review of {Bayesian} optimization.
+\newblock {\em Proceedings of the IEEE\/}, {\bf 104}(1), 148--175.
 
 \bibitem[{Silver(1978)}]{Silver1978}
 {\bf Silver, E.~A.} (1978).
 \newblock Inventory control under a probabilistic time-varying demand pattern.
 \newblock {\em AIIE Transactions\/}, {\bf 10}(4), 371--379.
+
+\bibitem[{Zipkin(2000)}]{Zipkin2000}
+{\bf Zipkin, P.~H.}, {\em Foundations of Inventory Management\/}.
+\newblock McGraw-Hill, 2000.
 
 \end{thebibliography}

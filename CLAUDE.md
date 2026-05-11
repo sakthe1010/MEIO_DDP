@@ -1,6 +1,8 @@
 # DDP — MEIO Digital-Twin Framework
 
-A discrete-event simulation framework for **Multi-Echelon Inventory Optimization** (MEIO) with joint inventory + transport co-optimization. Topology defaults to 1-supplier → 1-warehouse → 3-retailers ("1N3"), 5 SKUs, 365-day horizon.
+A discrete-event simulation framework for **Multi-Echelon Inventory Optimization** (MEIO) with joint inventory + transport co-optimization.
+
+**Canonical scenario (`config/1n3_5sku.json`):** `1N3` ≡ **1 supplier → N warehouses → 3 retailers**. The default config has **N=2 warehouses** (W1 serves R1+R2; W2 serves R3) — i.e. a **1-2-3 topology**, *not* 1-1-3. Network: `Supplier → {W1, W2}; W1 → {R1, R2}; W2 → R3`. 5 SKUs, **365-day horizon** using the last 365 days of the M5 Walmart series (`start_index=1548`, `strategy=clip`). Every experiment run prints a topology sanity line so a misreading is caught immediately.
 
 ---
 
@@ -10,7 +12,7 @@ A discrete-event simulation framework for **Multi-Echelon Inventory Optimization
 |------|---------|
 | `engine/` | Core simulation: simulator loop, nodes, transport, network graph, config validator |
 | `policies/` | Inventory control policies (7 implementations) |
-| `optimizer/` | Optuna TPE-based parameter search (inventory / transport / joint modes) |
+| `optimizer/` | TPE joint optimizer (`optimize.py`); NSGA-II Pareto frontier (`pareto.py`); per-policy search (`policy_search.py`); bullwhip-aware objective (`bullwhip_aware.py`) |
 | `scripts/` | CLI entry points: single run, experiment suite, plots, multi-seed validation |
 | `config/` | JSON scenario files (network, SKUs, policies, edges, optional disruptions) |
 | `tests/` | pytest suite (~80 tests) covering invariants, policy behaviour, transport |
@@ -37,7 +39,10 @@ Generated/ignored: `outputs/`, `__pycache__/`, `venv/`, `dump/`.
   - `KmCyclePolicy(k, m, S, review_offsets)`
   - `PeriodicReviewPolicy(review_period, order_up_to)`
   - `EchelonStockPolicy(echelon_base_stock_level)` — Clark & Scarf; simulator computes echelon inventory position via DFS over downstream nodes.
-- **Optimizer** — `optimizer/optimize.py`. `run_optimizer(config_path, mode, n_trials, min_fill_rate, seed, ...)`. Modes: `"inventory"`, `"transport"`, `"joint"`. `evaluate(cfg, volume_per_unit) -> (total_cost, fill_rate)`. `_apply_params(cfg, params)` injects candidate values.
+- **Optimizer** — `optimizer/optimize.py`. `run_optimizer(config_path, mode, n_trials, min_fill_rate, seed, per_sku_constraint=False, ...)`. Modes: `"inventory"`, `"transport"`, `"joint"`. `evaluate(cfg, vpu) -> (cost, fill)`; `evaluate_with_sku_fills(cfg, vpu) -> (cost, fill, {sku: fill})`. `_apply_params(cfg, params)` injects candidate values. With `per_sku_constraint=True` the penalty becomes `Σ_sku max(0, target − fill_sku) × 1e6` so every SKU must hit the target individually.
+- **Pareto** — `optimizer/pareto.py`. `run_nsga2_pareto(...)` runs Optuna's `NSGAIISampler` on `(total_cost, -fill_rate)` and returns the non-dominated set. Used by E4.
+- **Policy search (E6)** — `optimizer/policy_search.py`. Wraps Optuna with a per-policy parameter registry so non-`base_stock` policies (`ss`, `periodic_review`, `echelon_stock`) can be optimized in their native shape.
+- **Bullwhip-aware (E8)** — `optimizer/bullwhip_aware.py`. Joint search with augmented objective `total_cost + λ × mean_bullwhip`.
 
 ---
 
@@ -47,19 +52,48 @@ Generated/ignored: `outputs/`, `__pycache__/`, `venv/`, `dump/`.
 # Single run
 python scripts/run_simulation.py --config config/1n3_5sku.json
 
-# Full experiment suite (E0–E4) → outputs/experiments_<ts>/
+# Default experiment suite (E0–E4) → outputs/experiments_<ts>/
 python scripts/run_experiments.py --config config/1n3_5sku.json
-python scripts/run_experiments.py --config config/1n3_5sku.json --experiments E0 E3 --trials 50 --warmup 100
+
+# Full Phase A + Phase B suite (everything)
+python scripts/run_experiments.py --config config/1n3_5sku.json \
+    --experiments E0 E1a E1b E2 E3 E3_per_sku E4 E5 E6 E7 E8 E9 \
+    --trials 100 --validate_seeds 10
+
+# Subset
+python scripts/run_experiments.py --config config/1n3_5sku.json \
+    --experiments E0 E3 --trials 50
 
 # Plots (cost_breakdown, fill_rate, inventory_ts, orders_ts, bullwhip, pareto)
 python scripts/plot_results.py --expdir outputs/experiments_<ts>/
 
-# Multi-seed CI validation
-python scripts/multi_seed_validation.py --config config/1n3_5sku.json --params outputs/experiments_<ts>/E3/params.json --seeds 10
+# Multi-seed via flag (re-runs E3 best params under N seeds, mean ± std)
+python scripts/run_experiments.py --config ... --validate_seeds 10
 
 # Tests
-python -m pytest tests/ -q
+python -m pytest tests/ -q     # 84 tests
 ```
+
+### Warm-up convention
+
+`--warmup` defaults to **None**: each experiment in `EXPERIMENT_META` ships its own `recommended_warmup` (currently 30 days for the 365-day M5 scenario). Pass `--warmup N` to override globally. Synthetic / disruption configs that *measure* the transient should pass `--warmup 0` explicitly. The runner prints a warning if `warmup=0` and `T >= 200` and the experiment didn't opt in.
+
+### Experiment catalogue
+
+| ID | Purpose |
+|----|---------|
+| `E0` | Analytical newsvendor baseline (computed at runtime from the realised demand series, not hardcoded). |
+| `E1a` | Fixed 25% dispatch threshold on every lane, inventory unchanged from E0. |
+| `E1b` | Transport-only Optuna search (inventory locked at E0). |
+| `E2` | Inventory-only Optuna search. |
+| `E3` | Joint inventory + transport optimisation — main result. |
+| `E3_per_sku` | E3 with per-SKU fill constraint (every SKU ≥ target, not just aggregate). |
+| `E4` | Pareto: NSGA-II two-objective `(cost, -fill)` *plus* trimmed constraint sweep at 92–99% as a sanity check. |
+| `E5` | Disruption robustness — 14-day W1 outage, run with both E0 and E3 params. |
+| `E6` | Policy comparison — `base_stock`, `ss`, `periodic_review`, `echelon_stock` each individually optimized. |
+| `E7` | Forecast sensitivity — sweep σ_f ∈ {0,5,10,20,30}% applied to base-stock levels via noisy oracle. |
+| `E8` | Bullwhip-aware joint optimisation — sweep λ ∈ {0, 1e3, 1e4, 1e5, 1e6}, objective = cost + λ·mean_bullwhip. |
+| `E9` | Stochastic demand robustness — E3 params evaluated across 10 independently seeded Poisson realisations (λ = M5 mean per retailer/SKU); confirms parameter transferability without re-optimisation. |
 
 ---
 
@@ -119,11 +153,13 @@ python scripts/run_simulation.py --config inputs/config/generated_from_csv.json
 
 ## Conventions
 
-- **Warm-up exclusion** is mandatory for steady-state KPIs — pass `--warmup` everywhere.
-- **Bullwhip ratio** = order CV² / demand CV². > 1 = amplification upstream.
-- **Default fill-rate target** = 92% (overridable via `--min_fill_rate`).
-- **Outputs** land in `outputs/<run_type>_<timestamp>/` — never check them in.
-- **Policies must accept `t=None`** in `order_qty(...)` so the simulator can call them uniformly; periodic policies handle `None` by acting as if `t==review tick`.
+- **Warm-up exclusion**: each experiment in `EXPERIMENT_META` has its own `recommended_warmup`. Default 30 days for the M5 365-day scenario. CLI `--warmup` overrides globally.
+- **Bullwhip ratio** is computed *per echelon* (Lee/Padmanabhan/Whang 1997): `CV²(orders out) / CV²(orders in)` where the warehouse's "orders in" is the daily sum of orders from its children, *not* raw retailer demand. Reported per (node, SKU) in `bullwhip.csv` together with `cv2_in` and `cv2_out`.
+- **Default fill-rate target** = 92% (overridable via `--min_fill_rate`). Aggregate by default; pass `--experiments E3_per_sku` (or use `optimizer.run_optimizer(per_sku_constraint=True)`) for per-SKU.
+- **Newsvendor levels (E0)** are computed at runtime from the realised demand series via `_compute_newsvendor_levels`; the JSON's hardcoded `base_stock_level` values are *overwritten*. Saved to `E0/params.json`.
+- **Outputs** land in `outputs/experiments_<timestamp>/` — never check them in.
+- **Policies must accept `t=None`** in `order_qty(...)`; periodic policies handle `None` by acting as if `t==review tick`.
+- **Topology print**: every experiment run prints `Topology : 1 supplier, 2 warehouses, 3 retailers [Supplier → W1,W2 → R1,R2,R3]` so misreadings are caught at the start.
 
 ---
 
